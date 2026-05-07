@@ -93,7 +93,7 @@ Why:
 
 ### Backend environment variables
 
-Required for `apps/api`:
+Required for `apps/rlaas-backend-api`:
 
 ```env
 PORT=3000
@@ -119,7 +119,7 @@ Notes:
 
 ### Frontend environment variables
 
-Required for `apps/dashboard`:
+Required for `apps/rlaas-frontend-dashboard`:
 
 ```env
 NEXT_PUBLIC_API_URL=https://your-api-domain.example.com
@@ -137,7 +137,7 @@ Notes:
 ### Recommended steps
 
 1. Import the repository into Vercel.
-2. Set the project root to `apps/dashboard`.
+2. Set the project root to `apps/rlaas-frontend-dashboard`.
 3. Configure environment variables:
    - `NEXT_PUBLIC_API_URL`
    - `NEXT_INTERNAL_API_URL`
@@ -167,7 +167,7 @@ pnpm install --frozen-lockfile
 ### Recommended steps
 
 1. Create a new Web Service from the repository.
-2. Set the root directory to `apps/api`.
+2. Set the root directory to `apps/rlaas-backend-api`.
 3. Configure environment variables:
    - `DATABASE_URL`
    - `REDIS_HOST`
@@ -201,7 +201,7 @@ pnpm prisma:migrate:deploy && pnpm start:prod
 ### Recommended steps
 
 1. Create a new service from the repository.
-2. Point the service at `apps/api`.
+2. Point the service at `apps/rlaas-backend-api`.
 3. Add the same backend environment variables.
 4. Run migrations during deploy:
 
@@ -222,7 +222,7 @@ Railway is convenient if you also want to attach managed PostgreSQL or Redis fro
 ### Recommended steps
 
 1. Create a Fly app for the API.
-2. Build from `apps/api/Dockerfile`.
+2. Build from `apps/rlaas-backend-api/Dockerfile`.
 3. Set backend environment variables as Fly secrets.
 4. Attach managed or external PostgreSQL and Redis.
 5. Run migrations as a release command before promotion.
@@ -246,7 +246,7 @@ Use Neon when you want:
 After provisioning:
 
 ```bash
-pnpm --filter api prisma:migrate:deploy
+pnpm --filter @rlaas/backend-api prisma:migrate:deploy
 ```
 
 ### Supabase
@@ -330,7 +330,7 @@ Typical fixes:
 
 - verify `DATABASE_URL`
 - confirm the database allows the backend's network path
-- run `pnpm --filter api prisma:migrate:deploy` manually once if needed
+- run `pnpm --filter @rlaas/backend-api prisma:migrate:deploy` manually once if needed
 
 ### 3. Gateway check fails because Redis is unavailable
 

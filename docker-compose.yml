@@ -37,7 +37,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
+      dockerfile: apps/rlaas-backend-api/Dockerfile
     container_name: rlaas-api
     restart: unless-stopped
     depends_on:
@@ -68,7 +68,7 @@ services:
   dashboard:
     build:
       context: .
-      dockerfile: apps/dashboard/Dockerfile
+      dockerfile: apps/rlaas-frontend-dashboard/Dockerfile
     container_name: rlaas-dashboard
     restart: unless-stopped
     depends_on:

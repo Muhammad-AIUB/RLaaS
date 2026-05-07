@@ -33,7 +33,7 @@ docker compose up --build
 2. Ensure seed data exists:
 
 ```bash
-pnpm --filter api db:seed
+pnpm --filter @rlaas/backend-api db:seed
 ```
 
 3. Install `k6`:

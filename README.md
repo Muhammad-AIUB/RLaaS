@@ -44,8 +44,8 @@ RLaaS addresses that by separating policy management from runtime enforcement:
   - `sliding_window_counter`
   - `token_bucket`
 - Dashboard for projects, rules, API keys, and analytics
-- Express middleware SDK in `packages/sdk`
-- Real demo app in `examples/express-demo`
+- Express middleware SDK in `packages/rlaas-express-sdk`
+- Real demo app in `examples/rlaas-express-sdk-demo`
 - `k6` load testing for `POST /api/gateway/check`
 - Algorithm benchmark runner
 - Docker Compose for local platform startup
@@ -94,13 +94,13 @@ metadata |          | counters
 ```text
 rlaas-platform/
 |-- apps/
-|   |-- api/
-|   `-- dashboard/
+|   |-- rlaas-backend-api/
+|   `-- rlaas-frontend-dashboard/
 |-- packages/
-|   |-- sdk/
-|   `-- shared/
+|   |-- rlaas-express-sdk/
+|   `-- rlaas-shared-types/
 |-- examples/
-|   `-- express-demo/
+|   `-- rlaas-express-sdk-demo/
 |-- benchmarks/
 |-- load-tests/
 `-- docs/
@@ -117,9 +117,9 @@ pnpm install
 ### 2. Prepare environment files
 
 ```bash
-copy apps\api\.env.example apps\api\.env
-copy apps\dashboard\.env.example apps\dashboard\.env.local
-copy examples\express-demo\.env.example examples\express-demo\.env
+copy apps\rlaas-backend-api\.env.example apps\rlaas-backend-api\.env
+copy apps\rlaas-frontend-dashboard\.env.example apps\rlaas-frontend-dashboard\.env.local
+copy examples\rlaas-express-sdk-demo\.env.example examples\rlaas-express-sdk-demo\.env
 ```
 
 ### 3. Start the local stack
@@ -131,9 +131,9 @@ docker compose up --build
 ### 4. Generate Prisma client, migrate, and seed
 
 ```bash
-pnpm --filter api prisma:generate
-pnpm --filter api prisma:migrate:dev
-pnpm --filter api db:seed
+pnpm --filter @rlaas/backend-api prisma:generate
+pnpm --filter @rlaas/backend-api prisma:migrate:dev
+pnpm --filter @rlaas/backend-api db:seed
 ```
 
 ### 5. Open the platform
@@ -207,8 +207,8 @@ app.use(
 
 See also:
 
-- [packages/sdk/README.md](/e:/rlaas-platform/packages/sdk/README.md)
-- [examples/express-demo/README.md](/e:/rlaas-platform/examples/express-demo/README.md)
+- [packages/rlaas-express-sdk/README.md](/e:/rlaas-platform/packages/rlaas-express-sdk/README.md)
+- [examples/rlaas-express-sdk-demo/README.md](/e:/rlaas-platform/examples/rlaas-express-sdk-demo/README.md)
 
 ## Load testing
 
@@ -255,12 +255,12 @@ Measured dimensions:
 ## Helpful commands
 
 ```bash
-pnpm --filter api build
-pnpm --filter api test -- --runInBand
-pnpm --filter dashboard build
+pnpm --filter @rlaas/backend-api build
+pnpm --filter @rlaas/backend-api test -- --runInBand
+pnpm --filter @rlaas/frontend-dashboard build
 pnpm --filter @rlaas/shared build
 pnpm --filter @rlaas/sdk build
-pnpm --filter @rlaas/express-demo build
+pnpm --filter @rlaas/express-sdk-demo build
 pnpm loadtest:gateway
 pnpm benchmark:algorithms
 ```
@@ -274,5 +274,4 @@ pnpm benchmark:algorithms
 - [docs/load-testing.md](/e:/rlaas-platform/docs/load-testing.md)
 - [docs/benchmark-result.md](/e:/rlaas-platform/docs/benchmark-result.md)
 - [docs/deployment.md](/e:/rlaas-platform/docs/deployment.md)
-
 

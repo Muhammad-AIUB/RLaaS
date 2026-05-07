@@ -53,13 +53,13 @@ metadata |          | counters
 ```text
 rlaas-platform/
 |-- apps/
-|   |-- api/          NestJS backend
-|   `-- dashboard/    Next.js operator UI
+|   |-- rlaas-backend-api/        NestJS backend
+|   `-- rlaas-frontend-dashboard/ Next.js operator UI
 |-- packages/
-|   |-- sdk/          Express middleware SDK
-|   `-- shared/       shared enums and interfaces
+|   |-- rlaas-express-sdk/        Express middleware SDK
+|   `-- rlaas-shared-types/       shared enums and interfaces
 |-- examples/
-|   `-- express-demo/ real SDK demo app
+|   `-- rlaas-express-sdk-demo/ real SDK demo app
 |-- benchmarks/       algorithm benchmark runner
 |-- load-tests/       k6 gateway load tests
 `-- docs/             architecture and runbooks

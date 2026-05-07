@@ -20,19 +20,19 @@ pnpm install
 Backend:
 
 ```bash
-copy apps\api\.env.example apps\api\.env
+copy apps\rlaas-backend-api\.env.example apps\rlaas-backend-api\.env
 ```
 
 Dashboard:
 
 ```bash
-copy apps\dashboard\.env.example apps\dashboard\.env.local
+copy apps\rlaas-frontend-dashboard\.env.example apps\rlaas-frontend-dashboard\.env.local
 ```
 
 Express demo:
 
 ```bash
-copy examples\express-demo\.env.example examples\express-demo\.env
+copy examples\rlaas-express-sdk-demo\.env.example examples\rlaas-express-sdk-demo\.env
 ```
 
 ### 3. Start infrastructure
@@ -51,7 +51,7 @@ This starts:
 ### 4. Generate Prisma client
 
 ```bash
-pnpm --filter api prisma:generate
+pnpm --filter @rlaas/backend-api prisma:generate
 ```
 
 ### 5. Run migrations
@@ -59,19 +59,19 @@ pnpm --filter api prisma:generate
 Development migration flow:
 
 ```bash
-pnpm --filter api prisma:migrate:dev
+pnpm --filter @rlaas/backend-api prisma:migrate:dev
 ```
 
 Production-style migration flow:
 
 ```bash
-pnpm --filter api prisma:migrate:deploy
+pnpm --filter @rlaas/backend-api prisma:migrate:deploy
 ```
 
 ### 6. Seed demo data
 
 ```bash
-pnpm --filter api db:seed
+pnpm --filter @rlaas/backend-api db:seed
 ```
 
 Seeded values:
@@ -96,16 +96,16 @@ Seeded values:
 ### Backend
 
 ```bash
-pnpm --filter api start:dev
-pnpm --filter api build
-pnpm --filter api test -- --runInBand
+pnpm --filter @rlaas/backend-api start:dev
+pnpm --filter @rlaas/backend-api build
+pnpm --filter @rlaas/backend-api test -- --runInBand
 ```
 
 ### Dashboard
 
 ```bash
-pnpm --filter dashboard dev
-pnpm --filter dashboard build
+pnpm --filter @rlaas/frontend-dashboard dev
+pnpm --filter @rlaas/frontend-dashboard build
 ```
 
 ### Shared packages
@@ -118,7 +118,7 @@ pnpm --filter @rlaas/sdk build
 ### SDK demo app
 
 ```bash
-pnpm --filter @rlaas/express-demo dev
+pnpm --filter @rlaas/express-sdk-demo dev
 ```
 
 ### Load testing
