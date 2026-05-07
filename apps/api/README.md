@@ -8,6 +8,7 @@ This package contains the current backend core of the RLaaS Platform:
 - Health endpoint at `GET /api/health`
 - Gateway check endpoint at `POST /api/gateway/check`
 - Persisted rule resolution by scope and priority
+- Analytics endpoints built on `RequestLog` and `AnalyticsSnapshot`
 - Fixed Window Counter implementation backed by a Redis Lua script
 - Sliding Window Log implementation backed by Redis sorted sets
 - Sliding Window Counter implementation backed by Redis counters
@@ -18,6 +19,8 @@ This package contains the current backend core of the RLaaS Platform:
 ```bash
 pnpm install
 pnpm --filter api prisma:generate
+pnpm --filter api prisma:migrate:dev
+pnpm --filter api db:seed
 pnpm --filter api build
 pnpm --filter api start:dev
 ```
@@ -31,3 +34,14 @@ pnpm --filter api test -- --runInBand
 ## Environment
 
 See `.env.example` for required variables.
+
+## Seed data
+
+The seed script creates:
+
+- one demo user
+- one demo project
+- one active API key
+- five starter rate-limit rules
+- sample request logs
+- one daily analytics snapshot

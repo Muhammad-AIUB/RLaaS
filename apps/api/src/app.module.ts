@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { ConfigModule } from '@nestjs/config';
 import { AlgorithmsModule } from './algorithms/algorithms.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
@@ -21,6 +22,7 @@ import { UsersModule } from './users/users.module';
     PrismaModule,
     RedisModule,
     AlgorithmsModule,
+    AnalyticsModule,
     UsersModule,
     AuthModule,
     ProjectsModule,
