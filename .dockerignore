@@ -1,0 +1,16 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+**/dist
+**/.next
+coverage
+**/coverage
+.env
+.env.local
+apps/api/.env
+apps/dashboard/.env.local
+postgres_data
+redis_data
+benchmarks
+examples

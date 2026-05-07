@@ -1,0 +1,20 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-fog bg-mesh-glow text-ink antialiased;
+}
+
+a {
+  @apply text-inherit no-underline;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #9dc08b #f3f7f2;
+}
