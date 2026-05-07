@@ -20,19 +20,19 @@ pnpm install
 Backend:
 
 ```bash
-copy apps\rlaas-backend-api\.env.example apps\rlaas-backend-api\.env
+copy apps\api\.env.example apps\api\.env
 ```
 
 Dashboard:
 
 ```bash
-copy apps\rlaas-frontend-dashboard\.env.example apps\rlaas-frontend-dashboard\.env.local
+copy apps\dashboard\.env.example apps\dashboard\.env.local
 ```
 
 Express demo:
 
 ```bash
-copy examples\rlaas-express-sdk-demo\.env.example examples\rlaas-express-sdk-demo\.env
+copy examples\express-demo\.env.example examples\express-demo\.env
 ```
 
 ### 3. Start infrastructure
@@ -51,7 +51,7 @@ This starts:
 ### 4. Generate Prisma client
 
 ```bash
-pnpm --filter @rlaas/backend-api prisma:generate
+pnpm --filter @rlaas/api prisma:generate
 ```
 
 ### 5. Run migrations
@@ -59,25 +59,26 @@ pnpm --filter @rlaas/backend-api prisma:generate
 Development migration flow:
 
 ```bash
-pnpm --filter @rlaas/backend-api prisma:migrate:dev
+pnpm --filter @rlaas/api prisma:migrate:dev
 ```
 
 Production-style migration flow:
 
 ```bash
-pnpm --filter @rlaas/backend-api prisma:migrate:deploy
+pnpm --filter @rlaas/api prisma:migrate:deploy
 ```
 
 ### 6. Seed demo data
 
 ```bash
-pnpm --filter @rlaas/backend-api db:seed
+pnpm --filter @rlaas/api db:seed
 ```
 
 Seeded values:
 
 - demo user email
 - demo password
+- demo admin and viewer collaborators
 - demo project
 - demo API key
 - starter rules
@@ -89,36 +90,41 @@ Seeded values:
 - Dashboard: `http://localhost:3001`
 - API: `http://localhost:3000`
 - Swagger: `http://localhost:3000/docs`
-- Health: `http://localhost:3000/api/health`
+- Health: `http://localhost:3000/api/v1/health`
+
+### 8. Security settings
+
+- Set `API_KEY_HASH_PEPPER` to a long random secret before issuing production API keys.
+- `IDEMPOTENCY_TTL_SECONDS` controls how long `POST /api/v1/gateway/check` responses can be safely replayed.
 
 ## Useful commands
 
 ### Backend
 
 ```bash
-pnpm --filter @rlaas/backend-api start:dev
-pnpm --filter @rlaas/backend-api build
-pnpm --filter @rlaas/backend-api test -- --runInBand
+pnpm --filter @rlaas/api start:dev
+pnpm --filter @rlaas/api build
+pnpm --filter @rlaas/api test -- --runInBand
 ```
 
 ### Dashboard
 
 ```bash
-pnpm --filter @rlaas/frontend-dashboard dev
-pnpm --filter @rlaas/frontend-dashboard build
+pnpm --filter @rlaas/dashboard dev
+pnpm --filter @rlaas/dashboard build
 ```
 
 ### Shared packages
 
 ```bash
-pnpm --filter @rlaas/shared build
-pnpm --filter @rlaas/sdk build
+pnpm --filter @rlaas/shared-types build
+pnpm --filter @rlaas/express-sdk build
 ```
 
 ### SDK demo app
 
 ```bash
-pnpm --filter @rlaas/express-sdk-demo dev
+pnpm --filter @rlaas/express-demo dev
 ```
 
 ### Load testing
@@ -138,7 +144,7 @@ pnpm benchmark:algorithms
 ### Register
 
 ```bash
-curl -X POST http://localhost:3000/api/auth/register ^
+curl -X POST http://localhost:3000/api/v1/auth/register ^
   -H "Content-Type: application/json" ^
   -d "{\"email\":\"founder@rlaas.dev\",\"password\":\"StrongPassword123!\",\"fullName\":\"RLaaS Founder\"}"
 ```
@@ -146,7 +152,7 @@ curl -X POST http://localhost:3000/api/auth/register ^
 ### Login
 
 ```bash
-curl -X POST http://localhost:3000/api/auth/login ^
+curl -X POST http://localhost:3000/api/v1/auth/login ^
   -H "Content-Type: application/json" ^
   -d "{\"email\":\"demo@rlaas.local\",\"password\":\"DemoPass123!\"}"
 ```
@@ -154,7 +160,7 @@ curl -X POST http://localhost:3000/api/auth/login ^
 ### Create project
 
 ```bash
-curl -X POST http://localhost:3000/api/projects ^
+curl -X POST http://localhost:3000/api/v1/projects ^
   -H "Authorization: Bearer YOUR_TOKEN" ^
   -H "Content-Type: application/json" ^
   -d "{\"name\":\"Storefront API\",\"description\":\"Primary API shield\"}"
@@ -163,7 +169,7 @@ curl -X POST http://localhost:3000/api/projects ^
 ### Gateway check
 
 ```bash
-curl -X POST http://localhost:3000/api/gateway/check ^
+curl -X POST http://localhost:3000/api/v1/gateway/check ^
   -H "Content-Type: application/json" ^
   -d "{\"apiKey\":\"rlaas_live_demo_seed_key_1234567890\",\"ip\":\"203.0.113.10\",\"endpoint\":\"/api/products\",\"method\":\"GET\",\"userTier\":\"free\"}"
 ```
@@ -172,14 +178,14 @@ curl -X POST http://localhost:3000/api/gateway/check ^
 
 ```ts
 import express from 'express';
-import { createRlaasMiddleware } from '@rlaas/sdk';
+import { createRlaasMiddleware } from '@rlaas/express-sdk';
 
 const app = express();
 
 app.use(
   createRlaasMiddleware({
     apiKey: 'project_api_key',
-    gatewayUrl: 'http://localhost:3000/api/gateway/check',
+    gatewayUrl: 'http://localhost:3000/api/v1/gateway/check',
     userTierResolver: (req) => req.user?.tier ?? 'free',
   }),
 );

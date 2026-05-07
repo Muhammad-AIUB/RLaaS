@@ -93,7 +93,7 @@ Why:
 
 ### Backend environment variables
 
-Required for `apps/rlaas-backend-api`:
+Required for `apps/api`:
 
 ```env
 PORT=3000
@@ -102,9 +102,11 @@ REDIS_HOST=your-redis-host
 REDIS_PORT=6379
 JWT_SECRET=replace-with-a-strong-secret
 JWT_EXPIRES_IN=1d
+API_KEY_HASH_PEPPER=replace-with-a-different-strong-secret
 RATE_LIMIT_DEFAULT_LIMIT=100
 RATE_LIMIT_DEFAULT_WINDOW_SECONDS=60
 RATE_LIMIT_DEFAULT_ALGORITHM=fixed_window
+IDEMPOTENCY_TTL_SECONDS=300
 SEED_DEMO_EMAIL=demo@rlaas.local
 SEED_DEMO_PASSWORD=DemoPass123!
 SEED_DEMO_FULL_NAME=RLaaS Demo User
@@ -119,7 +121,7 @@ Notes:
 
 ### Frontend environment variables
 
-Required for `apps/rlaas-frontend-dashboard`:
+Required for `apps/dashboard`:
 
 ```env
 NEXT_PUBLIC_API_URL=https://your-api-domain.example.com
@@ -137,7 +139,7 @@ Notes:
 ### Recommended steps
 
 1. Import the repository into Vercel.
-2. Set the project root to `apps/rlaas-frontend-dashboard`.
+2. Set the project root to `apps/dashboard`.
 3. Configure environment variables:
    - `NEXT_PUBLIC_API_URL`
    - `NEXT_INTERNAL_API_URL`
@@ -167,7 +169,7 @@ pnpm install --frozen-lockfile
 ### Recommended steps
 
 1. Create a new Web Service from the repository.
-2. Set the root directory to `apps/rlaas-backend-api`.
+2. Set the root directory to `apps/api`.
 3. Configure environment variables:
    - `DATABASE_URL`
    - `REDIS_HOST`
@@ -186,14 +188,14 @@ pnpm prisma:migrate:deploy && pnpm start:prod
 5. Set the health check path to:
 
 ```text
-/api/health
+/api/v1/health
 ```
 
 ### What to verify after deploy
 
 - health endpoint returns healthy
 - Swagger opens if exposed publicly
-- `/api/gateway/check` can reach Redis
+- `/api/v1/gateway/check` can reach Redis
 - JWT auth works with real environment values
 
 ## Railway backend deployment
@@ -201,7 +203,7 @@ pnpm prisma:migrate:deploy && pnpm start:prod
 ### Recommended steps
 
 1. Create a new service from the repository.
-2. Point the service at `apps/rlaas-backend-api`.
+2. Point the service at `apps/api`.
 3. Add the same backend environment variables.
 4. Run migrations during deploy:
 
@@ -222,7 +224,7 @@ Railway is convenient if you also want to attach managed PostgreSQL or Redis fro
 ### Recommended steps
 
 1. Create a Fly app for the API.
-2. Build from `apps/rlaas-backend-api/Dockerfile`.
+2. Build from `apps/api/Dockerfile`.
 3. Set backend environment variables as Fly secrets.
 4. Attach managed or external PostgreSQL and Redis.
 5. Run migrations as a release command before promotion.
@@ -246,7 +248,7 @@ Use Neon when you want:
 After provisioning:
 
 ```bash
-pnpm --filter @rlaas/backend-api prisma:migrate:deploy
+pnpm --filter @rlaas/api prisma:migrate:deploy
 ```
 
 ### Supabase
@@ -295,7 +297,7 @@ Before calling the platform production-ready, verify:
 - Prisma migrations run successfully in the target environment
 - dashboard env vars point to the correct API base URL
 - `NEXT_PUBLIC_API_URL` uses HTTPS
-- `POST /api/gateway/check` works end to end with a real API key
+- `POST /api/v1/gateway/check` works end to end with a real API key
 - health endpoint is used by the hosting platform
 - seed data is not unintentionally run in a public production environment
 - logs are visible in your hosting provider
@@ -330,13 +332,13 @@ Typical fixes:
 
 - verify `DATABASE_URL`
 - confirm the database allows the backend's network path
-- run `pnpm --filter @rlaas/backend-api prisma:migrate:deploy` manually once if needed
+- run `pnpm --filter @rlaas/api prisma:migrate:deploy` manually once if needed
 
 ### 3. Gateway check fails because Redis is unavailable
 
 Symptoms:
 
-- `/api/gateway/check` returns `500`
+- `/api/v1/gateway/check` returns `500`
 - health endpoint shows Redis problems
 
 Typical fixes:

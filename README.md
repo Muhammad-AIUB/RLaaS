@@ -37,6 +37,11 @@ RLaaS addresses that by separating policy management from runtime enforcement:
 - Redis with Lua-backed atomic operations for hot-path counters
 - JWT authentication
 - Project, API key, and rule management
+- API versioning at `/api/v1` plus Swagger docs at `/docs`
+- Project-level RBAC with `OWNER`, `ADMIN`, and `VIEWER`
+- Audit logs for sensitive changes
+- Webhook alerts for blocked-request spikes
+- Rule simulation and gateway idempotency support
 - Rule precedence across IP, API key, user tier, endpoint, and global scopes
 - Four rate-limiting algorithms:
   - `fixed_window`
@@ -44,9 +49,9 @@ RLaaS addresses that by separating policy management from runtime enforcement:
   - `sliding_window_counter`
   - `token_bucket`
 - Dashboard for projects, rules, API keys, and analytics
-- Express middleware SDK in `packages/rlaas-express-sdk`
-- Real demo app in `examples/rlaas-express-sdk-demo`
-- `k6` load testing for `POST /api/gateway/check`
+- Express middleware SDK in `packages/express-sdk`
+- Real demo app in `examples/express-demo`
+- `k6` load testing for `POST /api/v1/gateway/check`
 - Algorithm benchmark runner
 - Docker Compose for local platform startup
 
@@ -94,15 +99,17 @@ metadata |          | counters
 ```text
 rlaas-platform/
 |-- apps/
-|   |-- rlaas-backend-api/
-|   `-- rlaas-frontend-dashboard/
+|   |-- api/          NestJS backend API and gateway
+|   `-- dashboard/    Next.js operator dashboard
 |-- packages/
-|   |-- rlaas-express-sdk/
-|   `-- rlaas-shared-types/
+|   |-- express-sdk/  Reusable Express middleware SDK
+|   `-- shared-types/ Shared contracts used by the SDK and platform
 |-- examples/
-|   `-- rlaas-express-sdk-demo/
+|   `-- express-demo/ Example protected Express application
+|-- tests/
+|   |-- load/         k6 load scripts
+|   `-- results/      generated load-test outputs
 |-- benchmarks/
-|-- load-tests/
 `-- docs/
 ```
 
@@ -117,9 +124,9 @@ pnpm install
 ### 2. Prepare environment files
 
 ```bash
-copy apps\rlaas-backend-api\.env.example apps\rlaas-backend-api\.env
-copy apps\rlaas-frontend-dashboard\.env.example apps\rlaas-frontend-dashboard\.env.local
-copy examples\rlaas-express-sdk-demo\.env.example examples\rlaas-express-sdk-demo\.env
+copy apps\api\.env.example apps\api\.env
+copy apps\dashboard\.env.example apps\dashboard\.env.local
+copy examples\express-demo\.env.example examples\express-demo\.env
 ```
 
 ### 3. Start the local stack
@@ -131,9 +138,9 @@ docker compose up --build
 ### 4. Generate Prisma client, migrate, and seed
 
 ```bash
-pnpm --filter @rlaas/backend-api prisma:generate
-pnpm --filter @rlaas/backend-api prisma:migrate:dev
-pnpm --filter @rlaas/backend-api db:seed
+pnpm --filter @rlaas/api prisma:generate
+pnpm --filter @rlaas/api prisma:migrate:dev
+pnpm --filter @rlaas/api db:seed
 ```
 
 ### 5. Open the platform
@@ -141,7 +148,8 @@ pnpm --filter @rlaas/backend-api db:seed
 - Dashboard: `http://localhost:3001`
 - API: `http://localhost:3000`
 - Swagger: `http://localhost:3000/docs`
-- Health: `http://localhost:3000/api/health`
+- Swagger: `http://localhost:3000/docs`
+- Health: `http://localhost:3000/api/v1/health`
 
 ## Seeded demo account
 
@@ -158,7 +166,7 @@ Expected demo defaults:
 Gateway check:
 
 ```bash
-curl -X POST http://localhost:3000/api/gateway/check ^
+curl -X POST http://localhost:3000/api/v1/gateway/check ^
   -H "Content-Type: application/json" ^
   -d "{\"apiKey\":\"rlaas_live_demo_seed_key_1234567890\",\"ip\":\"203.0.113.10\",\"endpoint\":\"/api/products\",\"method\":\"GET\",\"userTier\":\"free\"}"
 ```
@@ -192,14 +200,14 @@ Blocked response shape:
 
 ```ts
 import express from 'express';
-import { createRlaasMiddleware } from '@rlaas/sdk';
+import { createRlaasMiddleware } from '@rlaas/express-sdk';
 
 const app = express();
 
 app.use(
   createRlaasMiddleware({
     apiKey: 'project_api_key',
-    gatewayUrl: 'http://localhost:3000/api/gateway/check',
+    gatewayUrl: 'http://localhost:3000/api/v1/gateway/check',
     userTierResolver: (req) => req.user?.tier ?? 'free',
   }),
 );
@@ -207,8 +215,8 @@ app.use(
 
 See also:
 
-- [packages/rlaas-express-sdk/README.md](/e:/rlaas-platform/packages/rlaas-express-sdk/README.md)
-- [examples/rlaas-express-sdk-demo/README.md](/e:/rlaas-platform/examples/rlaas-express-sdk-demo/README.md)
+- [packages/express-sdk/README.md](/e:/rlaas-platform/packages/express-sdk/README.md)
+- [examples/express-demo/README.md](/e:/rlaas-platform/examples/express-demo/README.md)
 
 ## Load testing
 
@@ -255,12 +263,12 @@ Measured dimensions:
 ## Helpful commands
 
 ```bash
-pnpm --filter @rlaas/backend-api build
-pnpm --filter @rlaas/backend-api test -- --runInBand
-pnpm --filter @rlaas/frontend-dashboard build
-pnpm --filter @rlaas/shared build
-pnpm --filter @rlaas/sdk build
-pnpm --filter @rlaas/express-sdk-demo build
+pnpm --filter @rlaas/api build
+pnpm --filter @rlaas/api test -- --runInBand
+pnpm --filter @rlaas/dashboard build
+pnpm --filter @rlaas/shared-types build
+pnpm --filter @rlaas/express-sdk build
+pnpm --filter @rlaas/express-demo build
 pnpm loadtest:gateway
 pnpm benchmark:algorithms
 ```
@@ -274,4 +282,3 @@ pnpm benchmark:algorithms
 - [docs/load-testing.md](/e:/rlaas-platform/docs/load-testing.md)
 - [docs/benchmark-result.md](/e:/rlaas-platform/docs/benchmark-result.md)
 - [docs/deployment.md](/e:/rlaas-platform/docs/deployment.md)
-

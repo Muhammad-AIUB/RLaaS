@@ -53,10 +53,11 @@ export default function ProjectDetailsPage() {
           <div className="rounded-3xl bg-slate-50 px-5 py-4 text-sm text-slate-600">
             <p>Environment: <span className="font-medium text-ink">{project.environment}</span></p>
             <p className="mt-2">Status: <span className="font-medium text-ink">{project.isActive ? 'Active' : 'Paused'}</span></p>
+            <p className="mt-2">Access: <span className="font-medium text-ink">{project.currentRole ?? 'VIEWER'}</span></p>
           </div>
         </div>
       </Panel>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <Link href={`/projects/${project.id}/api-keys`}>
           <Panel className="transition hover:-translate-y-1">
             <p className="text-xs uppercase tracking-[0.32em] text-pine">API Keys</p>
@@ -76,6 +77,27 @@ export default function ProjectDetailsPage() {
             <p className="text-xs uppercase tracking-[0.32em] text-pine">Analytics</p>
             <h2 className="mt-3 text-2xl font-semibold text-ink">Live</h2>
             <p className="mt-2 text-sm text-slate-600">Inspect trends, top offenders, and snapshots.</p>
+          </Panel>
+        </Link>
+        <Link href={`/projects/${project.id}/members`}>
+          <Panel className="transition hover:-translate-y-1">
+            <p className="text-xs uppercase tracking-[0.32em] text-pine">Members</p>
+            <h2 className="mt-3 text-2xl font-semibold text-ink">{project.currentRole ?? 'VIEWER'}</h2>
+            <p className="mt-2 text-sm text-slate-600">Manage OWNER, ADMIN, and VIEWER access for this tenant.</p>
+          </Panel>
+        </Link>
+        <Link href={`/projects/${project.id}/webhooks`}>
+          <Panel className="transition hover:-translate-y-1">
+            <p className="text-xs uppercase tracking-[0.32em] text-pine">Webhooks</p>
+            <h2 className="mt-3 text-2xl font-semibold text-ink">Alerts</h2>
+            <p className="mt-2 text-sm text-slate-600">Route blocked-activity spikes to external responders.</p>
+          </Panel>
+        </Link>
+        <Link href={`/projects/${project.id}/audit-logs`}>
+          <Panel className="transition hover:-translate-y-1">
+            <p className="text-xs uppercase tracking-[0.32em] text-pine">Audit</p>
+            <h2 className="mt-3 text-2xl font-semibold text-ink">Trace</h2>
+            <p className="mt-2 text-sm text-slate-600">Review sensitive actions across keys, rules, and membership.</p>
           </Panel>
         </Link>
       </div>

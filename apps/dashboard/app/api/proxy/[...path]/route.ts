@@ -13,7 +13,7 @@ async function forward(
   }
 
   const { path } = await context.params;
-  const target = new URL(`${getApiBaseUrl()}/api/${path.join('/')}`);
+  const target = new URL(`${getApiBaseUrl()}/api/v1/${path.join('/')}`);
   const incomingUrl = new URL(request.url);
   target.search = incomingUrl.search;
 

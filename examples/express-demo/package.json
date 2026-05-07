@@ -1,5 +1,5 @@
 {
-  "name": "@rlaas/express-sdk-demo",
+  "name": "@rlaas/express-demo",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@rlaas/sdk": "workspace:*",
+    "@rlaas/express-sdk": "workspace:*",
     "dotenv": "^17.2.3",
     "express": "^5.1.0"
   },

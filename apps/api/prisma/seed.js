@@ -1,13 +1,25 @@
 require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
 
-const { PrismaClient, UserTier, ApiKeyStatus, RuleAlgorithm, RuleScope, RequestDecision, HttpMethod, SnapshotWindow, Prisma } = require('@prisma/client');
+const {
+  PrismaClient,
+  UserTier,
+  ApiKeyStatus,
+  RuleAlgorithm,
+  RuleScope,
+  RequestDecision,
+  HttpMethod,
+  SnapshotWindow,
+  Prisma,
+  ProjectRole,
+} = require('@prisma/client');
 const { hashSync } = require('bcryptjs');
-const { createHash } = require('crypto');
+const { createHmac } = require('crypto');
 
 const prisma = new PrismaClient();
 
-function sha256(value) {
-  return createHash('sha256').update(value).digest('hex');
+function hashApiKey(value) {
+  const pepper = process.env.API_KEY_HASH_PEPPER || process.env.JWT_SECRET || 'change-me';
+  return createHmac('sha256', pepper).update(value).digest('hex');
 }
 
 function subtractMinutes(date, minutes) {
@@ -18,9 +30,11 @@ async function main() {
   const demoEmail = process.env.SEED_DEMO_EMAIL || 'demo@rlaas.local';
   const demoPassword = process.env.SEED_DEMO_PASSWORD || 'DemoPass123!';
   const demoFullName = process.env.SEED_DEMO_FULL_NAME || 'RLaaS Demo User';
+  const adminEmail = process.env.SEED_ADMIN_EMAIL || 'admin@rlaas.local';
+  const viewerEmail = process.env.SEED_VIEWER_EMAIL || 'viewer@rlaas.local';
   const rawApiKey =
     process.env.SEED_RAW_API_KEY || 'rlaas_live_demo_seed_key_1234567890';
-  const hashedApiKey = sha256(rawApiKey);
+  const hashedApiKey = hashApiKey(rawApiKey);
   const keyPrefix = rawApiKey.slice(0, 18);
   const projectSlug = 'demo-storefront-api';
   const now = new Date();
@@ -42,6 +56,41 @@ async function main() {
     },
   });
 
+  const [adminUser, viewerUser] = await Promise.all([
+    prisma.user.upsert({
+      where: { email: adminEmail.toLowerCase() },
+      update: {
+        fullName: 'RLaaS Demo Admin',
+        passwordHash: hashSync('AdminPass123!', 12),
+        tier: UserTier.BUSINESS,
+        isActive: true,
+      },
+      create: {
+        email: adminEmail.toLowerCase(),
+        fullName: 'RLaaS Demo Admin',
+        passwordHash: hashSync('AdminPass123!', 12),
+        tier: UserTier.BUSINESS,
+        isActive: true,
+      },
+    }),
+    prisma.user.upsert({
+      where: { email: viewerEmail.toLowerCase() },
+      update: {
+        fullName: 'RLaaS Demo Viewer',
+        passwordHash: hashSync('ViewerPass123!', 12),
+        tier: UserTier.FREE,
+        isActive: true,
+      },
+      create: {
+        email: viewerEmail.toLowerCase(),
+        fullName: 'RLaaS Demo Viewer',
+        passwordHash: hashSync('ViewerPass123!', 12),
+        tier: UserTier.FREE,
+        isActive: true,
+      },
+    }),
+  ]);
+
   const project = await prisma.project.upsert({
     where: { slug: projectSlug },
     update: {
@@ -61,6 +110,51 @@ async function main() {
     },
   });
 
+  await prisma.projectMember.upsert({
+    where: {
+      projectId_userId: {
+        projectId: project.id,
+        userId: user.id,
+      },
+    },
+    update: { role: ProjectRole.OWNER },
+    create: {
+      projectId: project.id,
+      userId: user.id,
+      role: ProjectRole.OWNER,
+    },
+  });
+
+  await prisma.projectMember.upsert({
+    where: {
+      projectId_userId: {
+        projectId: project.id,
+        userId: adminUser.id,
+      },
+    },
+    update: { role: ProjectRole.ADMIN },
+    create: {
+      projectId: project.id,
+      userId: adminUser.id,
+      role: ProjectRole.ADMIN,
+    },
+  });
+
+  await prisma.projectMember.upsert({
+    where: {
+      projectId_userId: {
+        projectId: project.id,
+        userId: viewerUser.id,
+      },
+    },
+    update: { role: ProjectRole.VIEWER },
+    create: {
+      projectId: project.id,
+      userId: viewerUser.id,
+      role: ProjectRole.VIEWER,
+    },
+  });
+
   await prisma.$transaction([
     prisma.requestLog.deleteMany({ where: { projectId: project.id } }),
     prisma.analyticsSnapshot.deleteMany({ where: { projectId: project.id } }),
@@ -74,6 +168,7 @@ async function main() {
       name: 'Demo production key',
       keyPrefix,
       hashedKey: hashedApiKey,
+      hashVersion: 'hmac-sha256-v1',
       status: ApiKeyStatus.ACTIVE,
       lastUsedAt: now,
     },
@@ -409,6 +504,10 @@ async function main() {
   console.log('Seed complete');
   console.log(`Demo email: ${demoEmail}`);
   console.log(`Demo password: ${demoPassword}`);
+  console.log(`Admin email: ${adminEmail}`);
+  console.log('Admin password: AdminPass123!');
+  console.log(`Viewer email: ${viewerEmail}`);
+  console.log('Viewer password: ViewerPass123!');
   console.log(`Demo project slug: ${project.slug}`);
   console.log(`Demo raw API key: ${rawApiKey}`);
 }

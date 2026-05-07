@@ -1,11 +1,17 @@
-import { HttpMethod, RuleScope, UserTier } from '@prisma/client';
+import { createHash, randomUUID } from 'crypto';
+import { HttpMethod, Prisma, ProjectRole, RuleScope, UserTier } from '@prisma/client';
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AlgorithmRegistryService } from '../algorithms/algorithm-registry.service';
+import { RateLimitResult } from '../algorithms/interfaces/rate-limit-result.interface';
+import { AuditService } from '../audit/audit.service';
+import { RequestMetadata } from '../common/interfaces/request-metadata.interface';
 import { GatewayCheckDto } from '../gateway/dto/gateway-check.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
 import { ResolvedRateLimitRule } from '../rate-limiter/interfaces/resolved-rate-limit-rule.interface';
 import { mapRuleAlgorithm } from '../rate-limiter/utils/rule-algorithm.util';
 import { CreateRuleDto } from './dto/create-rule.dto';
+import { SimulateRuleDto } from './dto/simulate-rule.dto';
 import { UpdateRuleDto } from './dto/update-rule.dto';
 
 @Injectable()
@@ -13,21 +19,52 @@ export class RulesService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly projectsService: ProjectsService,
+    private readonly algorithmRegistryService: AlgorithmRegistryService,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(ownerId: string, projectId: string, dto: CreateRuleDto) {
-    await this.projectsService.getById(ownerId, projectId);
+  async create(
+    userId: string,
+    projectId: string,
+    dto: CreateRuleDto,
+    request?: RequestMetadata,
+  ) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+    ]);
 
-    return this.prismaService.rateLimitRule.create({
+    const rule = await this.prismaService.rateLimitRule.create({
       data: {
         projectId,
         ...dto,
       },
     });
+
+    await this.auditService.log({
+      action: 'rule.created',
+      actorId: userId,
+      projectId,
+      resourceType: 'rate_limit_rule',
+      resourceId: rule.id,
+      metadata: {
+        scope: rule.scope,
+        algorithm: rule.algorithm,
+        limit: rule.limit,
+        windowSeconds: rule.windowSeconds,
+      },
+      request,
+    });
+
+    return rule;
   }
 
-  async listByProject(ownerId: string, projectId: string) {
-    await this.projectsService.getById(ownerId, projectId);
+  async listByProject(userId: string, projectId: string) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+      ProjectRole.VIEWER,
+    ]);
 
     return this.prismaService.rateLimitRule.findMany({
       where: { projectId },
@@ -36,30 +73,140 @@ export class RulesService {
   }
 
   async update(
-    ownerId: string,
+    userId: string,
     projectId: string,
     ruleId: string,
     dto: UpdateRuleDto,
+    request?: RequestMetadata,
   ) {
-    await this.projectsService.getById(ownerId, projectId);
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+    ]);
     await this.getOwnedRule(projectId, ruleId);
 
-    return this.prismaService.rateLimitRule.update({
+    const rule = await this.prismaService.rateLimitRule.update({
       where: { id: ruleId },
       data: dto,
     });
+
+    await this.auditService.log({
+      action: 'rule.updated',
+      actorId: userId,
+      projectId,
+      resourceType: 'rate_limit_rule',
+      resourceId: ruleId,
+      metadata: dto as unknown as Prisma.InputJsonValue,
+      request,
+    });
+
+    return rule;
   }
 
-  async delete(ownerId: string, projectId: string, ruleId: string) {
-    await this.projectsService.getById(ownerId, projectId);
+  async delete(
+    userId: string,
+    projectId: string,
+    ruleId: string,
+    request?: RequestMetadata,
+  ) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+    ]);
     await this.getOwnedRule(projectId, ruleId);
 
     await this.prismaService.rateLimitRule.delete({
       where: { id: ruleId },
     });
 
+    await this.auditService.log({
+      action: 'rule.deleted',
+      actorId: userId,
+      projectId,
+      resourceType: 'rate_limit_rule',
+      resourceId: ruleId,
+      request,
+    });
+
     return {
       success: true,
+    };
+  }
+
+  async simulate(
+    userId: string,
+    projectId: string,
+    dto: SimulateRuleDto,
+    request?: RequestMetadata,
+  ) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+    ]);
+
+    const simulatedRule: ResolvedRateLimitRule = {
+      name: dto.rule.name,
+      scope: dto.rule.scope,
+      algorithm: mapRuleAlgorithm(dto.rule.algorithm),
+      limit: dto.rule.limit,
+      windowSeconds: dto.rule.windowSeconds,
+      targetValue: dto.rule.targetValue,
+      endpointPattern: dto.rule.endpointPattern,
+    };
+
+    const method = dto.request.method.toUpperCase() as HttpMethod;
+    const normalizedTier = dto.request.userTier.toUpperCase() as UserTier;
+    const matches = this.ruleMatchesRequest(
+      {
+        ...dto.rule,
+        method: dto.rule.method ?? null,
+        userTier: dto.rule.userTier ?? null,
+      },
+      dto.request,
+      method,
+      normalizedTier,
+    );
+
+    if (!matches) {
+      return {
+        matches: false,
+        reason: 'RULE_DOES_NOT_MATCH_REQUEST',
+      };
+    }
+
+    const simulationKey = this.buildSimulationKey(projectId, dto);
+    const iterations = dto.requestCount ?? 1;
+    let lastResult: RateLimitResult | null = null;
+
+    for (let index = 0; index < iterations; index += 1) {
+      lastResult = await this.algorithmRegistryService.get(simulatedRule.algorithm).consume({
+        key: simulationKey,
+        limit: simulatedRule.limit,
+        windowSeconds: simulatedRule.windowSeconds,
+        algorithm: simulatedRule.algorithm,
+      });
+    }
+
+    await this.auditService.log({
+      action: 'rule.simulated',
+      actorId: userId,
+      projectId,
+      resourceType: 'rate_limit_rule_simulation',
+      metadata: {
+        iterations,
+        scope: simulatedRule.scope,
+        algorithm: simulatedRule.algorithm,
+        endpoint: dto.request.endpoint,
+      },
+      request,
+    });
+
+    return {
+      matches: true,
+      simulationKey,
+      simulatedRequests: iterations,
+      result: lastResult,
+      rule: simulatedRule,
     };
   }
 
@@ -162,6 +309,52 @@ export class RulesService {
 
   private matchesMethod(ruleMethod: HttpMethod | null, requestMethod: HttpMethod) {
     return !ruleMethod || ruleMethod === requestMethod;
+  }
+
+  private ruleMatchesRequest(
+    rule: {
+      scope: RuleScope;
+      method: HttpMethod | null;
+      targetValue?: string | null;
+      endpointPattern?: string | null;
+      userTier?: UserTier | null;
+    },
+    request: GatewayCheckDto,
+    method: HttpMethod,
+    normalizedTier: UserTier,
+  ) {
+    if (!this.matchesMethod(rule.method, method)) {
+      return false;
+    }
+
+    switch (rule.scope) {
+      case RuleScope.IP:
+        return rule.targetValue === request.ip;
+      case RuleScope.API_KEY:
+        return request.apiKey === (rule.targetValue ?? '');
+      case RuleScope.USER_TIER:
+        return (
+          rule.userTier === normalizedTier ||
+          rule.targetValue?.toUpperCase() === normalizedTier
+        );
+      case RuleScope.ENDPOINT:
+        return this.matchesEndpointPattern(
+          rule.endpointPattern ?? rule.targetValue ?? '',
+          request.endpoint,
+        );
+      case RuleScope.GLOBAL:
+      default:
+        return true;
+    }
+  }
+
+  private buildSimulationKey(projectId: string, dto: SimulateRuleDto) {
+    const fingerprint = createHash('sha256')
+      .update(JSON.stringify(dto))
+      .digest('hex')
+      .slice(0, 16);
+
+    return ['rlaas', 'simulation', projectId, randomUUID(), fingerprint].join(':');
   }
 
   private matchesEndpointPattern(pattern: string, endpoint: string) {

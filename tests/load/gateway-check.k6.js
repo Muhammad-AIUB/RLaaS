@@ -10,7 +10,7 @@ const allowedCount = new Counter('gateway_allowed_count');
 const blockedCount = new Counter('gateway_blocked_count');
 
 const gatewayUrl =
-  __ENV.K6_GATEWAY_URL || 'http://localhost:3000/api/gateway/check';
+  __ENV.K6_GATEWAY_URL || 'http://localhost:3000/api/v1/gateway/check';
 const apiKey =
   __ENV.K6_API_KEY || 'rlaas_live_demo_seed_key_1234567890';
 
@@ -124,6 +124,6 @@ export function handleSummary(data) {
       indent: ' ',
       enableColors: true,
     }),
-    'load-tests/results/gateway-check-summary.json': JSON.stringify(data, null, 2),
+    'tests/results/gateway-check-summary.json': JSON.stringify(data, null, 2),
   };
 }

@@ -1,4 +1,7 @@
 packages:
+  # Deployable applications
   - "apps/*"
+  # Reusable libraries and SDKs
   - "packages/*"
+  # Runnable reference implementations
   - "examples/*"

@@ -4,7 +4,7 @@ import { AUTH_COOKIE, getApiBaseUrl } from '@/lib/session';
 
 export async function POST(request: Request) {
   const body = await request.text();
-  const response = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
+  const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

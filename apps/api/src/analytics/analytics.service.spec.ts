@@ -8,7 +8,7 @@ describe('AnalyticsService', () => {
   const groupByMock = jest.fn();
   const findManyMock = jest.fn();
   const upsertMock = jest.fn();
-  const getByIdMock = jest.fn();
+  const assertProjectAccessMock = jest.fn();
 
   const prismaService = {
     requestLog: {
@@ -23,7 +23,7 @@ describe('AnalyticsService', () => {
   } as unknown as PrismaService;
 
   const projectsService = {
-    getById: getByIdMock,
+    assertProjectAccess: assertProjectAccessMock,
   } as unknown as ProjectsService;
 
   const service = new AnalyticsService(prismaService, projectsService);
@@ -33,8 +33,8 @@ describe('AnalyticsService', () => {
     groupByMock.mockReset();
     findManyMock.mockReset();
     upsertMock.mockReset();
-    getByIdMock.mockReset();
-    getByIdMock.mockResolvedValue({});
+    assertProjectAccessMock.mockReset();
+    assertProjectAccessMock.mockResolvedValue({});
   });
 
   it('computes overview totals and block rate', async () => {

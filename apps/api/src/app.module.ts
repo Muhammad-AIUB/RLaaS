@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { AuditModule } from './audit/audit.module';
 import { ConfigModule } from '@nestjs/config';
 import { AlgorithmsModule } from './algorithms/algorithms.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
@@ -12,6 +13,7 @@ import { RateLimiterModule } from './rate-limiter/rate-limiter.module';
 import { RedisModule } from './redis/redis.module';
 import { RulesModule } from './rules/rules.module';
 import { UsersModule } from './users/users.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -23,11 +25,13 @@ import { UsersModule } from './users/users.module';
     RedisModule,
     AlgorithmsModule,
     AnalyticsModule,
+    AuditModule,
     UsersModule,
     AuthModule,
     ProjectsModule,
     ApiKeysModule,
     RulesModule,
+    WebhooksModule,
     RateLimiterModule,
     GatewayModule,
     HealthModule,

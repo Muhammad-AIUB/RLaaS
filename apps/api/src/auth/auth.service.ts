@@ -2,7 +2,9 @@ import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import { UserTier } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
+import { AuditService } from '../audit/audit.service';
 import { AuthResponse } from '../common/interfaces/auth-response.interface';
+import { RequestMetadata } from '../common/interfaces/request-metadata.interface';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UsersService } from '../users/users.service';
@@ -12,9 +14,10 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly auditService: AuditService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<AuthResponse> {
+  async register(dto: RegisterDto, request?: RequestMetadata): Promise<AuthResponse> {
     const existingUser = await this.usersService.findByEmail(dto.email);
 
     if (existingUser) {
@@ -29,10 +32,21 @@ export class AuthService {
       tier: dto.tier ?? UserTier.FREE,
     });
 
+    await this.auditService.log({
+      action: 'auth.registered',
+      actorId: user.id,
+      resourceType: 'user',
+      resourceId: user.id,
+      metadata: {
+        email: user.email,
+      },
+      request,
+    });
+
     return this.buildAuthResponse(user);
   }
 
-  async login(dto: LoginDto): Promise<AuthResponse> {
+  async login(dto: LoginDto, request?: RequestMetadata): Promise<AuthResponse> {
     const user = await this.usersService.findByEmail(dto.email);
 
     if (!user || !user.isActive) {
@@ -44,6 +58,17 @@ export class AuthService {
     if (!passwordMatches) {
       throw new UnauthorizedException('Invalid credentials');
     }
+
+    await this.auditService.log({
+      action: 'auth.logged_in',
+      actorId: user.id,
+      resourceType: 'user',
+      resourceId: user.id,
+      metadata: {
+        email: user.email,
+      },
+      request,
+    });
 
     return this.buildAuthResponse(user);
   }

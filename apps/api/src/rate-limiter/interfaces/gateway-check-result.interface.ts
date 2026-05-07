@@ -10,4 +10,5 @@ export interface GatewayCheckResult {
   ruleId?: string;
   ruleName?: string;
   scope?: string;
+  idempotencyStatus?: 'created' | 'replayed';
 }

@@ -14,11 +14,25 @@ export interface ProjectSummary {
   description?: string | null;
   environment: string;
   isActive: boolean;
+  currentRole?: string;
   createdAt: string;
   updatedAt: string;
   _count?: {
     apiKeys: number;
     rules: number;
+  };
+}
+
+export interface ProjectMemberRecord {
+  id: string;
+  role: string;
+  createdAt: string;
+  updatedAt: string;
+  user: {
+    id: string;
+    email: string;
+    fullName: string;
+    tier: string;
   };
 }
 
@@ -104,6 +118,36 @@ export interface RequestLogRecord {
     scope: string;
     priority: number;
   } | null;
+}
+
+export interface AuditLogRecord {
+  id: string;
+  action: string;
+  resourceType: string;
+  resourceId?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  actor?: {
+    id: string;
+    email: string;
+    fullName: string;
+  } | null;
+}
+
+export interface WebhookEndpointRecord {
+  id: string;
+  name: string;
+  url: string;
+  eventType: string;
+  blockedRequestsThreshold: number;
+  windowSeconds: number;
+  cooldownSeconds: number;
+  isActive: boolean;
+  lastTriggeredAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SnapshotRecord {

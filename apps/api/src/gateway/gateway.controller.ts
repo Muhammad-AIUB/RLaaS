@@ -4,7 +4,7 @@ import { RateLimiterService } from '../rate-limiter/rate-limiter.service';
 import { GatewayCheckDto } from './dto/gateway-check.dto';
 
 @ApiTags('gateway')
-@Controller('gateway')
+@Controller({ path: 'gateway', version: '1' })
 export class GatewayController {
   constructor(private readonly rateLimiterService: RateLimiterService) {}
 

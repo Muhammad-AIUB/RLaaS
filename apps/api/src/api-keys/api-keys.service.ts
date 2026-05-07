@@ -2,8 +2,10 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ApiKeyStatus } from '@prisma/client';
-import { createHash, randomBytes } from 'crypto';
+import { ApiKeyStatus, ProjectRole } from '@prisma/client';
+import { createHmac, randomBytes } from 'crypto';
+import { AuditService } from '../audit/audit.service';
+import { RequestMetadata } from '../common/interfaces/request-metadata.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
@@ -13,10 +15,19 @@ export class ApiKeysService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly projectsService: ProjectsService,
+    private readonly auditService: AuditService,
   ) {}
 
-  async create(ownerId: string, projectId: string, dto: CreateApiKeyDto) {
-    await this.projectsService.getById(ownerId, projectId);
+  async create(
+    userId: string,
+    projectId: string,
+    dto: CreateApiKeyDto,
+    request?: RequestMetadata,
+  ) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+    ]);
 
     const plainKey = this.generateApiKey();
     const keyPrefix = plainKey.slice(0, 18);
@@ -28,8 +39,23 @@ export class ApiKeysService {
         name: dto.name,
         keyPrefix,
         hashedKey,
+        hashVersion: 'hmac-sha256-v1',
         expiresAt: dto.expiresAt,
       },
+    });
+
+    await this.auditService.log({
+      action: 'api_key.created',
+      actorId: userId,
+      projectId,
+      resourceType: 'api_key',
+      resourceId: apiKey.id,
+      metadata: {
+        name: apiKey.name,
+        keyPrefix: apiKey.keyPrefix,
+        expiresAt: apiKey.expiresAt?.toISOString() ?? null,
+      },
+      request,
     });
 
     return {
@@ -38,8 +64,12 @@ export class ApiKeysService {
     };
   }
 
-  async listByProject(ownerId: string, projectId: string) {
-    await this.projectsService.getById(ownerId, projectId);
+  async listByProject(userId: string, projectId: string) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+      ProjectRole.VIEWER,
+    ]);
 
     return this.prismaService.apiKey.findMany({
       where: { projectId },
@@ -47,8 +77,16 @@ export class ApiKeysService {
     });
   }
 
-  async revoke(ownerId: string, projectId: string, apiKeyId: string) {
-    await this.projectsService.getById(ownerId, projectId);
+  async revoke(
+    userId: string,
+    projectId: string,
+    apiKeyId: string,
+    request?: RequestMetadata,
+  ) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+    ]);
 
     const existing = await this.prismaService.apiKey.findFirst({
       where: {
@@ -61,12 +99,26 @@ export class ApiKeysService {
       throw new NotFoundException('API key not found');
     }
 
-    return this.prismaService.apiKey.update({
+    const apiKey = await this.prismaService.apiKey.update({
       where: { id: apiKeyId },
       data: {
         status: ApiKeyStatus.REVOKED,
       },
     });
+
+    await this.auditService.log({
+      action: 'api_key.revoked',
+      actorId: userId,
+      projectId,
+      resourceType: 'api_key',
+      resourceId: apiKeyId,
+      metadata: {
+        keyPrefix: apiKey.keyPrefix,
+      },
+      request,
+    });
+
+    return apiKey;
   }
 
   findByRawKey(rawKey: string) {
@@ -87,6 +139,10 @@ export class ApiKeysService {
   }
 
   private hashApiKey(value: string) {
-    return createHash('sha256').update(value).digest('hex');
+    return createHmac('sha256', this.resolveHashPepper()).update(value).digest('hex');
+  }
+
+  private resolveHashPepper() {
+    return process.env.API_KEY_HASH_PEPPER || process.env.JWT_SECRET || 'change-me';
   }
 }

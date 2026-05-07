@@ -9,7 +9,9 @@ import { AlgorithmRegistryService } from '../algorithms/algorithm-registry.servi
 import { RateLimitAlgorithm } from '../algorithms/algorithm.enum';
 import { GatewayCheckDto } from '../gateway/dto/gateway-check.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { RulesService } from '../rules/rules.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { RateLimiterService } from './rate-limiter.service';
 
 describe('RateLimiterService', () => {
@@ -18,6 +20,9 @@ describe('RateLimiterService', () => {
   const updateApiKeyMock = jest.fn();
   const findByRawKeyMock = jest.fn();
   const findMatchingRuleMock = jest.fn();
+  const redisGetMock = jest.fn();
+  const redisSetMock = jest.fn();
+  const notifyHighBlockedActivityMock = jest.fn();
 
   const configService = {
     get: jest.fn((key: string, defaultValue: unknown) => defaultValue),
@@ -46,12 +51,25 @@ describe('RateLimiterService', () => {
     },
   } as unknown as PrismaService;
 
+  const redisService = {
+    getClient: jest.fn(() => ({
+      get: redisGetMock,
+      set: redisSetMock,
+    })),
+  } as unknown as RedisService;
+
+  const webhooksService = {
+    notifyHighBlockedActivity: notifyHighBlockedActivityMock,
+  } as unknown as WebhooksService;
+
   const service = new RateLimiterService(
     configService,
     algorithmRegistryService,
     apiKeysService,
     rulesService,
     prismaService,
+    redisService,
+    webhooksService,
   );
 
   beforeEach(() => {
@@ -60,6 +78,10 @@ describe('RateLimiterService', () => {
     updateApiKeyMock.mockReset();
     findByRawKeyMock.mockReset();
     findMatchingRuleMock.mockReset();
+    redisGetMock.mockReset();
+    redisSetMock.mockReset();
+    notifyHighBlockedActivityMock.mockReset();
+    notifyHighBlockedActivityMock.mockResolvedValue(undefined);
   });
 
   it('returns API_KEY_INVALID when the key is unknown', async () => {

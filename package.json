@@ -4,17 +4,17 @@
   "private": true,
   "description": "RLaaS Platform monorepo",
   "scripts": {
-    "dev:backend": "pnpm --filter @rlaas/backend-api start:dev",
-    "dev:frontend": "pnpm --filter @rlaas/frontend-dashboard dev",
-    "dev:sdk-demo": "pnpm --filter @rlaas/express-sdk-demo dev",
-    "build:backend": "pnpm --filter @rlaas/backend-api build",
-    "build:frontend": "pnpm --filter @rlaas/frontend-dashboard build",
-    "build:shared": "pnpm --filter @rlaas/shared build",
-    "build:sdk": "pnpm --filter @rlaas/sdk build",
-    "build:sdk-demo": "pnpm --filter @rlaas/express-sdk-demo build",
-    "loadtest:gateway": "k6 run load-tests/gateway-check.k6.js",
+    "dev:api": "pnpm --filter @rlaas/api start:dev",
+    "dev:dashboard": "pnpm --filter @rlaas/dashboard dev",
+    "dev:express-demo": "pnpm --filter @rlaas/express-demo dev",
+    "build:api": "pnpm --filter @rlaas/api build",
+    "build:dashboard": "pnpm --filter @rlaas/dashboard build",
+    "build:shared-types": "pnpm --filter @rlaas/shared-types build",
+    "build:express-sdk": "pnpm --filter @rlaas/express-sdk build",
+    "build:express-demo": "pnpm --filter @rlaas/express-demo build",
+    "loadtest:gateway": "k6 run tests/load/gateway-check.k6.js",
     "benchmark:algorithms": "tsx benchmarks/algorithm-benchmark.ts",
-    "test:backend": "pnpm --filter @rlaas/backend-api test"
+    "test:api": "pnpm --filter @rlaas/api test"
   },
   "packageManager": "pnpm@10.33.2",
   "devDependencies": {

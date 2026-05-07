@@ -11,7 +11,7 @@ Incoming API request
 Application middleware / SDK
         |
         v
-POST /api/gateway/check
+POST /api/v1/gateway/check
         |
         v
 Resolve API key -> project
@@ -166,7 +166,7 @@ createRlaasMiddleware
    `-- resolves user tier
    |
    v
-POST /api/gateway/check
+POST /api/v1/gateway/check
    |
    |-- allowed -> next()
    `-- blocked -> 429 JSON

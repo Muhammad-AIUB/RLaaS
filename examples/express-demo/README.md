@@ -1,6 +1,6 @@
 # Express Demo
 
-This example shows a real Express API protected by `@rlaas/sdk`.
+This example shows a real Express API protected by `@rlaas/express-sdk`.
 
 ## Routes
 
@@ -22,7 +22,7 @@ copy .env.example .env
 3. Start the demo:
 
 ```bash
-pnpm --filter @rlaas/express-sdk-demo dev
+pnpm --filter @rlaas/express-demo dev
 ```
 
 ## Test

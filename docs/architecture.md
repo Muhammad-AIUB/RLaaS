@@ -53,15 +53,15 @@ metadata |          | counters
 ```text
 rlaas-platform/
 |-- apps/
-|   |-- rlaas-backend-api/        NestJS backend
-|   `-- rlaas-frontend-dashboard/ Next.js operator UI
+|   |-- api/                     NestJS backend
+|   `-- dashboard/               Next.js operator UI
 |-- packages/
-|   |-- rlaas-express-sdk/        Express middleware SDK
-|   `-- rlaas-shared-types/       shared enums and interfaces
+|   |-- express-sdk/             Express middleware SDK
+|   `-- shared-types/            shared enums and interfaces
 |-- examples/
-|   `-- rlaas-express-sdk-demo/ real SDK demo app
+|   `-- express-demo/            real SDK demo app
 |-- benchmarks/       algorithm benchmark runner
-|-- load-tests/       k6 gateway load tests
+|-- tests/load/       k6 gateway load tests
 `-- docs/             architecture and runbooks
 ```
 
@@ -137,7 +137,7 @@ The SDK is the integration surface for application teams.
 Its job is to:
 
 - detect request metadata
-- call `POST /api/gateway/check`
+- call `POST /api/v1/gateway/check`
 - allow the request on success
 - return `429` when blocked
 

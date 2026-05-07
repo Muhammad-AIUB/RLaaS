@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import {
   ApiKeyStatus,
   HttpMethod,
@@ -5,17 +6,26 @@ import {
   RuleAlgorithm,
   UserTier,
 } from '@prisma/client';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiKeysService } from '../api-keys/api-keys.service';
 import { AlgorithmRegistryService } from '../algorithms/algorithm-registry.service';
 import { RateLimitAlgorithm } from '../algorithms/algorithm.enum';
+import { RateLimitResult } from '../algorithms/interfaces/rate-limit-result.interface';
 import { GatewayCheckDto } from '../gateway/dto/gateway-check.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { RulesService } from '../rules/rules.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 import { GatewayCheckResult } from './interfaces/gateway-check-result.interface';
 import { ResolvedRateLimitRule } from './interfaces/resolved-rate-limit-rule.interface';
-import { mapRuleAlgorithm } from './utils/rule-algorithm.util';
+
+type ApiKeyValidationResult =
+  | {
+      ok: true;
+      apiKey: NonNullable<Awaited<ReturnType<ApiKeysService['findByRawKey']>>>;
+    }
+  | { ok: false; response: GatewayCheckResult };
 
 @Injectable()
 export class RateLimiterService {
@@ -25,42 +35,40 @@ export class RateLimiterService {
     private readonly apiKeysService: ApiKeysService,
     private readonly rulesService: RulesService,
     private readonly prismaService: PrismaService,
+    private readonly redisService: RedisService,
+    private readonly webhooksService: WebhooksService,
   ) {}
 
   async checkRequest(dto: GatewayCheckDto): Promise<GatewayCheckResult> {
-    const apiKey = await this.apiKeysService.findByRawKey(dto.apiKey);
+    const redis = this.redisService.getClient();
+    const validation = await this.validateApiKey(dto.apiKey);
 
-    if (!apiKey) {
-      return {
-        allowed: false,
-        reason: 'API_KEY_INVALID',
-        limit: 0,
-        remaining: 0,
-        retryAfter: 0,
-        algorithm: RateLimitAlgorithm.FIXED_WINDOW,
-      };
+    if (!validation.ok) {
+      return validation.response;
     }
 
-    if (apiKey.status === ApiKeyStatus.REVOKED) {
-      return {
-        allowed: false,
-        reason: 'API_KEY_REVOKED',
-        limit: 0,
-        remaining: 0,
-        retryAfter: 0,
-        algorithm: RateLimitAlgorithm.FIXED_WINDOW,
-      };
-    }
+    const { apiKey } = validation;
+    const normalizedMethod = dto.method.toUpperCase();
+    const normalizedTier = dto.userTier.toUpperCase();
 
-    if (apiKey.expiresAt && apiKey.expiresAt <= new Date()) {
-      return {
-        allowed: false,
-        reason: 'API_KEY_REVOKED',
-        limit: 0,
-        remaining: 0,
-        retryAfter: 0,
-        algorithm: RateLimitAlgorithm.FIXED_WINDOW,
-      };
+    const idempotencyCacheKey = dto.idempotencyKey
+      ? this.buildIdempotencyCacheKey(apiKey.projectId, apiKey.id, {
+          ...dto,
+          method: normalizedMethod,
+          userTier: normalizedTier,
+        })
+      : null;
+
+    if (idempotencyCacheKey) {
+      const cached = await redis.get(idempotencyCacheKey);
+
+      if (cached) {
+        const parsed = JSON.parse(cached) as GatewayCheckResult;
+        return {
+          ...parsed,
+          idempotencyStatus: 'replayed',
+        };
+      }
     }
 
     const rule =
@@ -71,7 +79,11 @@ export class RateLimiterService {
         request: dto,
       })) ?? this.buildDefaultRule();
 
-    const key = this.buildRateLimitKey(dto, rule, apiKey.projectId);
+    const key = this.buildRateLimitKey(
+      { ...dto, method: normalizedMethod, userTier: normalizedTier },
+      rule,
+      apiKey.projectId,
+    );
 
     const result = await this.algorithmRegistryService.get(rule.algorithm).consume({
       key,
@@ -86,42 +98,43 @@ export class RateLimiterService {
       ruleId: rule.id,
       ruleName: rule.name,
       scope: rule.scope,
+      ...(idempotencyCacheKey ? { idempotencyStatus: 'created' } : {}),
     };
 
-    await this.prismaService.requestLog.create({
-      data: {
-        projectId: apiKey.projectId,
-        apiKeyId: apiKey.id,
-        ruleId: rule.id,
-        ipAddress: dto.ip,
-        endpoint: dto.endpoint,
-        method: dto.method.toUpperCase() as HttpMethod,
-        userTier: this.toPrismaUserTier(dto.userTier),
-        decision: result.allowed ? RequestDecision.ALLOWED : RequestDecision.BLOCKED,
-        reason: response.reason,
-        algorithm: this.toPrismaRuleAlgorithm(rule.algorithm),
-        limit: response.limit,
-        remaining: response.remaining,
-        retryAfter: response.retryAfter,
-        metadata: {
-          scope: rule.scope,
-          ruleName: rule.name,
-        },
-      },
+    await this.persistRequestOutcome({
+      apiKeyId: apiKey.id,
+      projectId: apiKey.projectId,
+      dto: { ...dto, method: normalizedMethod, userTier: normalizedTier },
+      rule,
+      result,
+      response,
     });
 
-    await this.prismaService.apiKey.update({
-      where: { id: apiKey.id },
-      data: {
-        lastUsedAt: new Date(),
-      },
-    });
+    if (idempotencyCacheKey) {
+      await redis.set(
+        idempotencyCacheKey,
+        JSON.stringify(response),
+        'EX',
+        Number(this.configService.get('IDEMPOTENCY_TTL_SECONDS', 300)),
+      );
+    }
+
+    if (!response.allowed) {
+      void this.webhooksService.notifyHighBlockedActivity({
+        projectId: apiKey.projectId,
+        endpoint: dto.endpoint,
+        method: normalizedMethod,
+        ruleId: rule.id,
+        ruleName: rule.name,
+        ipAddress: dto.ip,
+      });
+    }
 
     return response;
   }
 
   private buildRateLimitKey(
-    dto: GatewayCheckDto,
+    dto: Pick<GatewayCheckDto, 'ip' | 'apiKey' | 'endpoint' | 'method' | 'userTier'>,
     rule: ResolvedRateLimitRule,
     projectId: string,
   ): string {
@@ -172,6 +185,100 @@ export class RateLimiterService {
     };
   }
 
+  private async validateApiKey(rawApiKey: string): Promise<ApiKeyValidationResult> {
+    const apiKey = await this.apiKeysService.findByRawKey(rawApiKey);
+
+    if (!apiKey) {
+      return {
+        ok: false,
+        response: this.buildRejectedResponse('API_KEY_INVALID'),
+      };
+    }
+
+    if (apiKey.status === ApiKeyStatus.REVOKED) {
+      return {
+        ok: false,
+        response: this.buildRejectedResponse('API_KEY_REVOKED'),
+      };
+    }
+
+    if (apiKey.expiresAt && apiKey.expiresAt <= new Date()) {
+      return {
+        ok: false,
+        response: this.buildRejectedResponse('API_KEY_REVOKED'),
+      };
+    }
+
+    return {
+      ok: true,
+      apiKey,
+    };
+  }
+
+  private buildRejectedResponse(
+    reason: NonNullable<GatewayCheckResult['reason']>,
+  ): GatewayCheckResult {
+    return {
+      allowed: false,
+      reason,
+      limit: 0,
+      remaining: 0,
+      retryAfter: 0,
+      algorithm: RateLimitAlgorithm.FIXED_WINDOW,
+    };
+  }
+
+  private async persistRequestOutcome(params: {
+    projectId: string;
+    apiKeyId: string;
+    dto: Pick<
+      GatewayCheckDto,
+      'idempotencyKey' | 'ip' | 'endpoint' | 'method' | 'userTier'
+    >;
+    rule: ResolvedRateLimitRule;
+    result: RateLimitResult;
+    response: GatewayCheckResult;
+  }) {
+    const {
+      projectId,
+      apiKeyId,
+      dto,
+      rule,
+      result,
+      response,
+    } = params;
+
+    await this.prismaService.requestLog.create({
+      data: {
+        projectId,
+        apiKeyId,
+        ruleId: rule.id,
+        idempotencyKey: dto.idempotencyKey,
+        ipAddress: dto.ip,
+        endpoint: dto.endpoint,
+        method: dto.method as HttpMethod,
+        userTier: this.toPrismaUserTier(dto.userTier),
+        decision: result.allowed ? RequestDecision.ALLOWED : RequestDecision.BLOCKED,
+        reason: response.reason,
+        algorithm: this.toPrismaRuleAlgorithm(rule.algorithm),
+        limit: response.limit,
+        remaining: response.remaining,
+        retryAfter: response.retryAfter,
+        metadata: {
+          scope: rule.scope,
+          ruleName: rule.name,
+        },
+      },
+    });
+
+    await this.prismaService.apiKey.update({
+      where: { id: apiKeyId },
+      data: {
+        lastUsedAt: new Date(),
+      },
+    });
+  }
+
   private resolveDefaultAlgorithm(): RateLimitAlgorithm {
     const value = this.configService.get<string>(
       'RATE_LIMIT_DEFAULT_ALGORITHM',
@@ -217,5 +324,27 @@ export class RateLimiterService {
       default:
         return null;
     }
+  }
+
+  private buildIdempotencyCacheKey(
+    projectId: string,
+    apiKeyId: string,
+    dto: Pick<GatewayCheckDto, 'idempotencyKey' | 'ip' | 'endpoint' | 'method' | 'userTier'>,
+  ) {
+    const fingerprint = createHash('sha256')
+      .update(
+        JSON.stringify({
+          apiKeyId,
+          ip: dto.ip,
+          endpoint: dto.endpoint,
+          method: dto.method,
+          userTier: dto.userTier,
+        }),
+      )
+      .digest('hex');
+
+    return ['rlaas', 'idempotency', projectId, dto.idempotencyKey, fingerprint].join(
+      ':',
+    );
   }
 }

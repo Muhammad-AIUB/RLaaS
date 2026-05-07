@@ -15,7 +15,7 @@ Next.js dashboard for the RLaaS Platform with:
 ```bash
 pnpm install
 copy .env.example .env.local
-pnpm --filter @rlaas/backend-api start:dev
-pnpm --filter @rlaas/frontend-dashboard build
-pnpm --filter @rlaas/frontend-dashboard dev
+pnpm --filter @rlaas/api start:dev
+pnpm --filter @rlaas/dashboard build
+pnpm --filter @rlaas/dashboard dev
 ```

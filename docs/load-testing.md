@@ -8,11 +8,11 @@ Validate that the RLaaS gateway can handle concurrent protection checks with pre
 
 The main script is:
 
-`load-tests/gateway-check.k6.js`
+`tests/load/gateway-check.k6.js`
 
 It targets:
 
-- `POST /api/gateway/check`
+- `POST /api/v1/gateway/check`
 
 It includes two scenarios:
 
@@ -33,7 +33,7 @@ docker compose up --build
 2. Ensure seed data exists:
 
 ```bash
-pnpm --filter @rlaas/backend-api db:seed
+pnpm --filter @rlaas/api db:seed
 ```
 
 3. Install `k6`:
@@ -66,9 +66,9 @@ pnpm loadtest:gateway
 Override the gateway URL or API key:
 
 ```bash
-$env:K6_GATEWAY_URL="http://localhost:3000/api/gateway/check"
+$env:K6_GATEWAY_URL="http://localhost:3000/api/v1/gateway/check"
 $env:K6_API_KEY="rlaas_live_demo_seed_key_1234567890"
-k6 run load-tests/gateway-check.k6.js
+k6 run tests/load/gateway-check.k6.js
 ```
 
 ## Output
@@ -76,7 +76,7 @@ k6 run load-tests/gateway-check.k6.js
 The script writes:
 
 - a readable console summary
-- a JSON summary file at `load-tests/results/gateway-check-summary.json`
+- a JSON summary file at `tests/results/gateway-check-summary.json`
 
 ## What to watch
 

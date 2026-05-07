@@ -1,12 +1,12 @@
 import 'dotenv/config';
 import express from 'express';
-import { createRlaasMiddleware } from '@rlaas/sdk';
+import { createRlaasMiddleware } from '@rlaas/express-sdk';
 
 const app = express();
 
 const port = Number(process.env.PORT ?? 4000);
 const gatewayUrl =
-  process.env.RLAAS_GATEWAY_URL ?? 'http://localhost:3000/api/gateway/check';
+  process.env.RLAAS_GATEWAY_URL ?? 'http://localhost:3000/api/v1/gateway/check';
 const apiKey =
   process.env.RLAAS_API_KEY ?? 'rlaas_live_demo_seed_key_1234567890';
 

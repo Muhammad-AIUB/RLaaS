@@ -63,7 +63,7 @@ export default function ProjectsPage() {
             <p className="text-xs uppercase tracking-[0.32em] text-pine">Projects</p>
             <h1 className="mt-3 text-3xl font-semibold text-ink">Protect each API as its own surface.</h1>
             <p className="mt-3 text-sm text-slate-600">
-              Projects keep API keys, rules, and analytics isolated by environment and owner.
+              Projects isolate tenants by membership, environment, and policy scope.
             </p>
           </div>
           <form className="grid gap-3 md:grid-cols-2" onSubmit={handleCreate}>
@@ -98,6 +98,7 @@ export default function ProjectsPage() {
                 <div className="mt-6 flex gap-3 text-sm text-slate-500">
                   <span>{project._count?.apiKeys ?? 0} keys</span>
                   <span>{project._count?.rules ?? 0} rules</span>
+                  <span>{project.currentRole ?? 'VIEWER'} access</span>
                 </div>
               </Panel>
             </Link>

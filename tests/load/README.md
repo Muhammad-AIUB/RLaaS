@@ -4,7 +4,7 @@ This folder contains `k6` load tests for RLaaS gateway behavior.
 
 Current script:
 
-- `gateway-check.k6.js` for `POST /api/gateway/check`
+- `gateway-check.k6.js` for `POST /api/v1/gateway/check`
 
 It simulates:
 

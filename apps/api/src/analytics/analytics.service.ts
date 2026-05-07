@@ -1,6 +1,7 @@
 import {
   AnalyticsSnapshot,
   Prisma,
+  ProjectRole,
   RequestDecision,
   SnapshotWindow,
 } from '@prisma/client';
@@ -17,8 +18,12 @@ export class AnalyticsService {
     private readonly projectsService: ProjectsService,
   ) {}
 
-  async getOverview(ownerId: string, projectId: string, query: AnalyticsQueryDto) {
-    await this.projectsService.getById(ownerId, projectId);
+  async getOverview(userId: string, projectId: string, query: AnalyticsQueryDto) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+      ProjectRole.VIEWER,
+    ]);
     const where = this.buildWhere(projectId, query);
 
     const [totalRequests, allowedRequests, blockedRequests] = await Promise.all([
@@ -47,8 +52,12 @@ export class AnalyticsService {
     };
   }
 
-  async getTopIps(ownerId: string, projectId: string, query: AnalyticsQueryDto) {
-    await this.projectsService.getById(ownerId, projectId);
+  async getTopIps(userId: string, projectId: string, query: AnalyticsQueryDto) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+      ProjectRole.VIEWER,
+    ]);
     const limit = query.limit ?? 5;
 
     const grouped = await this.prismaService.requestLog.groupBy({
@@ -71,8 +80,12 @@ export class AnalyticsService {
     }));
   }
 
-  async getTopEndpoints(ownerId: string, projectId: string, query: AnalyticsQueryDto) {
-    await this.projectsService.getById(ownerId, projectId);
+  async getTopEndpoints(userId: string, projectId: string, query: AnalyticsQueryDto) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+      ProjectRole.VIEWER,
+    ]);
     const limit = query.limit ?? 5;
 
     const grouped = await this.prismaService.requestLog.groupBy({
@@ -97,11 +110,15 @@ export class AnalyticsService {
   }
 
   async getAlgorithmPerformance(
-    ownerId: string,
+    userId: string,
     projectId: string,
     query: AnalyticsQueryDto,
   ) {
-    await this.projectsService.getById(ownerId, projectId);
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+      ProjectRole.VIEWER,
+    ]);
 
     const grouped = await this.prismaService.requestLog.groupBy({
       by: ['algorithm'],
@@ -123,8 +140,12 @@ export class AnalyticsService {
     }));
   }
 
-  async getRecentLogs(ownerId: string, projectId: string, query: AnalyticsQueryDto) {
-    await this.projectsService.getById(ownerId, projectId);
+  async getRecentLogs(userId: string, projectId: string, query: AnalyticsQueryDto) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+      ProjectRole.VIEWER,
+    ]);
     const limit = query.limit ?? 20;
 
     return this.prismaService.requestLog.findMany({
@@ -155,11 +176,14 @@ export class AnalyticsService {
   }
 
   async createSnapshot(
-    ownerId: string,
+    userId: string,
     projectId: string,
     dto: CreateSnapshotDto,
   ): Promise<AnalyticsSnapshot> {
-    await this.projectsService.getById(ownerId, projectId);
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+    ]);
 
     const periodStart = dto.from ?? this.defaultFrom(dto.window);
     const periodEnd = dto.to ?? new Date();
@@ -170,10 +194,10 @@ export class AnalyticsService {
     };
 
     const [overview, topIps, topEndpoints, algorithmPerformance] = await Promise.all([
-      this.getOverview(ownerId, projectId, query),
-      this.getTopIps(ownerId, projectId, query),
-      this.getTopEndpoints(ownerId, projectId, query),
-      this.getAlgorithmPerformance(ownerId, projectId, query),
+      this.getOverview(userId, projectId, query),
+      this.getTopIps(userId, projectId, query),
+      this.getTopEndpoints(userId, projectId, query),
+      this.getAlgorithmPerformance(userId, projectId, query),
     ]);
 
     return this.prismaService.analyticsSnapshot.upsert({
@@ -210,8 +234,12 @@ export class AnalyticsService {
     });
   }
 
-  async listSnapshots(ownerId: string, projectId: string, query: AnalyticsQueryDto) {
-    await this.projectsService.getById(ownerId, projectId);
+  async listSnapshots(userId: string, projectId: string, query: AnalyticsQueryDto) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+      ProjectRole.VIEWER,
+    ]);
     const limit = query.limit ?? 20;
 
     return this.prismaService.analyticsSnapshot.findMany({

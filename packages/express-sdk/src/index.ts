@@ -3,7 +3,7 @@ import type {
   GatewayCheckRequest,
   GatewayCheckResponse,
   RlaasErrorResponse,
-} from '@rlaas/shared';
+} from '@rlaas/shared-types';
 
 export interface CreateRlaasMiddlewareOptions {
   apiKey: string;
@@ -124,4 +124,4 @@ export type {
   GatewayCheckRequest,
   GatewayCheckResponse,
   RlaasErrorResponse,
-} from '@rlaas/shared';
+} from '@rlaas/shared-types';
