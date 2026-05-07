@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rlaas-postgres
+    environment:
+      POSTGRES_DB: rlaas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: rlaas-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: rlaas-api
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/rlaas?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: change-me-in-step-2
+      JWT_EXPIRES_IN: 1d
+      RATE_LIMIT_DEFAULT_LIMIT: 100
+      RATE_LIMIT_DEFAULT_WINDOW_SECONDS: 60
+      RATE_LIMIT_DEFAULT_ALGORITHM: fixed_window
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  redis_data:

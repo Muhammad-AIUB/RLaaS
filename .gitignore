@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.local
+.next/
+coverage/
+*.log
+apps/api/.env
+apps/api/dist/
+apps/dashboard/.env.local
+postgres_data/
+redis_data/

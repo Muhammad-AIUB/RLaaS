@@ -1,0 +1,12 @@
+{
+  "name": "rlaas-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RLaaS Platform monorepo",
+  "scripts": {
+    "dev:api": "pnpm --filter api start:dev",
+    "build:api": "pnpm --filter api build",
+    "test:api": "pnpm --filter api test"
+  },
+  "packageManager": "pnpm@10.33.2"
+}

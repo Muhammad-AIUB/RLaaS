@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserTier {
+  FREE
+  PRO
+  BUSINESS
+  ENTERPRISE
+}
+
+enum ApiKeyStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum RuleScope {
+  IP
+  API_KEY
+  USER_TIER
+  ENDPOINT
+  GLOBAL
+}
+
+enum RuleAlgorithm {
+  FIXED_WINDOW
+  SLIDING_WINDOW_LOG
+  SLIDING_WINDOW_COUNTER
+  TOKEN_BUCKET
+}
+
+enum RequestDecision {
+  ALLOWED
+  BLOCKED
+}
+
+enum HttpMethod {
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+  OPTIONS
+  HEAD
+}
+
+enum SnapshotWindow {
+  HOURLY
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique @db.VarChar(255)
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  fullName     String   @map("full_name") @db.VarChar(120)
+  tier         UserTier @default(FREE)
+  isActive     Boolean  @default(true) @map("is_active")
+  projects     Project[]
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Project {
+  id          String              @id @default(uuid()) @db.Uuid
+  ownerId     String              @map("owner_id") @db.Uuid
+  name        String              @db.VarChar(120)
+  slug        String              @unique @db.VarChar(120)
+  description String?             @db.Text
+  environment String              @default("production") @db.VarChar(50)
+  isActive    Boolean             @default(true) @map("is_active")
+  owner       User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  apiKeys     ApiKey[]
+  rules       RateLimitRule[]
+  requestLogs RequestLog[]
+  analytics   AnalyticsSnapshot[]
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  @@index([ownerId])
+  @@map("projects")
+}
+
+model ApiKey {
+  id          String       @id @default(uuid()) @db.Uuid
+  projectId   String       @map("project_id") @db.Uuid
+  name        String       @db.VarChar(120)
+  keyPrefix   String       @map("key_prefix") @db.VarChar(24)
+  hashedKey   String       @map("hashed_key") @unique @db.VarChar(255)
+  status      ApiKeyStatus @default(ACTIVE)
+  lastUsedAt  DateTime?    @map("last_used_at")
+  expiresAt   DateTime?    @map("expires_at")
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestLogs RequestLog[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@index([projectId])
+  @@index([status])
+  @@map("api_keys")
+}
+
+model RateLimitRule {
+  id              String       @id @default(uuid()) @db.Uuid
+  projectId       String       @map("project_id") @db.Uuid
+  name            String       @db.VarChar(120)
+  description     String?      @db.Text
+  priority        Int
+  scope           RuleScope
+  targetValue     String?      @map("target_value") @db.VarChar(255)
+  endpointPattern String?      @map("endpoint_pattern") @db.VarChar(255)
+  method          HttpMethod?
+  userTier        UserTier?    @map("user_tier")
+  algorithm       RuleAlgorithm
+  limit           Int
+  windowSeconds   Int          @map("window_seconds")
+  burstCapacity   Int?         @map("burst_capacity")
+  isActive        Boolean      @default(true) @map("is_active")
+  project         Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requestLogs     RequestLog[]
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  @@index([projectId, isActive])
+  @@index([projectId, priority])
+  @@index([scope, targetValue])
+  @@map("rate_limit_rules")
+}
+
+model RequestLog {
+  id             String          @id @default(uuid()) @db.Uuid
+  projectId      String          @map("project_id") @db.Uuid
+  apiKeyId       String?         @map("api_key_id") @db.Uuid
+  ruleId         String?         @map("rule_id") @db.Uuid
+  requestId      String?         @map("request_id") @db.VarChar(120)
+  ipAddress      String          @map("ip_address") @db.VarChar(64)
+  endpoint       String          @db.VarChar(255)
+  method         HttpMethod
+  userTier       UserTier?       @map("user_tier")
+  decision       RequestDecision
+  reason         String?         @db.VarChar(120)
+  algorithm      RuleAlgorithm
+  limit          Int
+  remaining      Int
+  retryAfter     Int             @default(0) @map("retry_after")
+  responseTimeMs Int?            @map("response_time_ms")
+  metadata       Json?
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  apiKey         ApiKey?         @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  rule           RateLimitRule?  @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@index([apiKeyId, createdAt])
+  @@index([decision, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([endpoint, method])
+  @@map("request_logs")
+}
+
+model AnalyticsSnapshot {
+  id                             String         @id @default(uuid()) @db.Uuid
+  projectId                      String         @map("project_id") @db.Uuid
+  window                         SnapshotWindow
+  periodStart                    DateTime       @map("period_start")
+  periodEnd                      DateTime       @map("period_end")
+  totalRequests                  Int            @default(0) @map("total_requests")
+  allowedRequests                Int            @default(0) @map("allowed_requests")
+  blockedRequests                Int            @default(0) @map("blocked_requests")
+  blockRate                      Decimal        @default(0) @map("block_rate") @db.Decimal(5, 2)
+  topOffendingIps                Json?          @map("top_offending_ips")
+  mostUsedEndpoints              Json?          @map("most_used_endpoints")
+  algorithmPerformanceComparison Json?          @map("algorithm_performance_comparison")
+  project                        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt                      DateTime       @default(now()) @map("created_at")
+  updatedAt                      DateTime       @updatedAt @map("updated_at")
+
+  @@unique([projectId, window, periodStart, periodEnd])
+  @@index([projectId, periodStart, periodEnd])
+  @@map("analytics_snapshots")
+}
