@@ -275,8 +275,4 @@ pnpm benchmark:algorithms
 - [docs/benchmark-result.md](/e:/rlaas-platform/docs/benchmark-result.md)
 - [docs/deployment.md](/e:/rlaas-platform/docs/deployment.md)
 
-## Interview explanation
 
-A good senior-level summary of this project is:
-
-"RLaaS is designed as a programmable policy system rather than a single middleware snippet. PostgreSQL stores ownership, rules, and analytics. Redis handles the hot-path enforcement state. NestJS coordinates rule resolution and algorithm execution. The dashboard serves as the control plane, and the SDK is the application-facing integration boundary."
