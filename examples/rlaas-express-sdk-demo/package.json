@@ -1,5 +1,5 @@
 {
-  "name": "@rlaas/express-demo",
+  "name": "@rlaas/express-sdk-demo",
   "version": "0.0.1",
   "private": true,
   "type": "module",

@@ -18,17 +18,17 @@ This package contains the current backend core of the RLaaS Platform:
 
 ```bash
 pnpm install
-pnpm --filter api prisma:generate
-pnpm --filter api prisma:migrate:dev
-pnpm --filter api db:seed
-pnpm --filter api build
-pnpm --filter api start:dev
+pnpm --filter @rlaas/backend-api prisma:generate
+pnpm --filter @rlaas/backend-api prisma:migrate:dev
+pnpm --filter @rlaas/backend-api db:seed
+pnpm --filter @rlaas/backend-api build
+pnpm --filter @rlaas/backend-api start:dev
 ```
 
 ## Test
 
 ```bash
-pnpm --filter api test -- --runInBand
+pnpm --filter @rlaas/backend-api test -- --runInBand
 ```
 
 ## Environment

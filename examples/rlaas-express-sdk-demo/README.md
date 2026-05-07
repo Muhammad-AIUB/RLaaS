@@ -22,7 +22,7 @@ copy .env.example .env
 3. Start the demo:
 
 ```bash
-pnpm --filter @rlaas/express-demo dev
+pnpm --filter @rlaas/express-sdk-demo dev
 ```
 
 ## Test
