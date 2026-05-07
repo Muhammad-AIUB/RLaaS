@@ -5,8 +5,19 @@
   "description": "RLaaS Platform monorepo",
   "scripts": {
     "dev:api": "pnpm --filter api start:dev",
+    "dev:dashboard": "pnpm --filter dashboard dev",
+    "dev:express-demo": "pnpm --filter @rlaas/express-demo dev",
     "build:api": "pnpm --filter api build",
+    "build:dashboard": "pnpm --filter dashboard build",
+    "build:shared": "pnpm --filter @rlaas/shared build",
+    "build:sdk": "pnpm --filter @rlaas/sdk build",
+    "build:express-demo": "pnpm --filter @rlaas/express-demo build",
+    "loadtest:gateway": "k6 run load-tests/gateway-check.k6.js",
+    "benchmark:algorithms": "tsx benchmarks/algorithm-benchmark.ts",
     "test:api": "pnpm --filter api test"
   },
-  "packageManager": "pnpm@10.33.2"
+  "packageManager": "pnpm@10.33.2",
+  "devDependencies": {
+    "tsup": "^8.5.1"
+  }
 }

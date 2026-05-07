@@ -1,3 +1,5 @@
+require('dotenv').config({ path: require('path').resolve(__dirname, '../.env') });
+
 const { PrismaClient, UserTier, ApiKeyStatus, RuleAlgorithm, RuleScope, RequestDecision, HttpMethod, SnapshotWindow, Prisma } = require('@prisma/client');
 const { hashSync } = require('bcryptjs');
 const { createHash } = require('crypto');

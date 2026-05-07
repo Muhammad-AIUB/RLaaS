@@ -1,3 +1,3 @@
-# Shared Package Placeholder
+# @rlaas/shared
 
-Step 1 focuses on backend core delivery. Shared cross-package types will be added in a later step.
+Shared enums and TypeScript interfaces for the RLaaS monorepo.
