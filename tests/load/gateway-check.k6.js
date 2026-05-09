@@ -11,8 +11,19 @@ const blockedCount = new Counter('gateway_blocked_count');
 
 const gatewayUrl =
   __ENV.K6_GATEWAY_URL || 'http://localhost:3000/api/v1/gateway/check';
-const apiKey =
-  __ENV.K6_API_KEY || 'rlaas_live_demo_seed_key_1234567890';
+const apiKey = __ENV.K6_API_KEY;
+const allowedIp = __ENV.K6_ALLOWED_IP || '198.51.100.10';
+const blockedIp = __ENV.K6_BLOCKED_IP || '203.0.113.10';
+const allowedEndpoint = __ENV.K6_ALLOWED_ENDPOINT || '/api/orders';
+const blockedEndpoint = __ENV.K6_BLOCKED_ENDPOINT || '/api/products';
+const allowedMethod = __ENV.K6_ALLOWED_METHOD || 'GET';
+const blockedMethod = __ENV.K6_BLOCKED_METHOD || 'GET';
+const allowedUserTier = __ENV.K6_ALLOWED_USER_TIER || 'pro';
+const blockedUserTier = __ENV.K6_BLOCKED_USER_TIER || 'free';
+
+if (!apiKey) {
+  throw new Error('K6_API_KEY is required. No demo or seeded API key is bundled.');
+}
 
 export const options = {
   scenarios: {
@@ -71,10 +82,10 @@ function gatewayCheck(payload) {
 export function allowedScenario() {
   const response = gatewayCheck({
     apiKey,
-    ip: `198.51.100.${(__VU % 50) + 10}`,
-    endpoint: '/api/orders',
-    method: 'GET',
-    userTier: 'pro',
+    ip: allowedIp,
+    endpoint: allowedEndpoint,
+    method: allowedMethod,
+    userTier: allowedUserTier,
   });
 
   const isAllowed =
@@ -95,10 +106,10 @@ export function allowedScenario() {
 export function blockedScenario() {
   const response = gatewayCheck({
     apiKey,
-    ip: '203.0.113.10',
-    endpoint: '/api/products',
-    method: 'GET',
-    userTier: 'free',
+    ip: blockedIp,
+    endpoint: blockedEndpoint,
+    method: blockedMethod,
+    userTier: blockedUserTier,
   });
 
   const isBlocked =

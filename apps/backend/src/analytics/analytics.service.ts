@@ -1,11 +1,13 @@
 import {
   AnalyticsSnapshot,
+  ApiKeyStatus,
   Prisma,
   ProjectRole,
   RequestDecision,
+  RuleScope,
   SnapshotWindow,
 } from '@prisma/client';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
@@ -13,6 +15,8 @@ import { CreateSnapshotDto } from './dto/create-snapshot.dto';
 
 @Injectable()
 export class AnalyticsService {
+  private readonly logger = new Logger(AnalyticsService.name);
+
   constructor(
     private readonly prismaService: PrismaService,
     private readonly projectsService: ProjectsService,
@@ -141,20 +145,43 @@ export class AnalyticsService {
   }
 
   async getRecentLogs(userId: string, projectId: string, query: AnalyticsQueryDto) {
+    const startedAt = performance.now();
+    const accessStartedAt = performance.now();
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
+    const accessDurationMs = performance.now() - accessStartedAt;
     const limit = query.limit ?? 20;
+    const queryStartedAt = performance.now();
 
-    return this.prismaService.requestLog.findMany({
+    const logs = await this.prismaService.requestLog.findMany({
       where: this.buildWhere(projectId, query),
       orderBy: {
         createdAt: 'desc',
       },
       take: limit,
-      include: {
+      select: {
+        id: true,
+        projectId: true,
+        apiKeyId: true,
+        ruleId: true,
+        requestId: true,
+        idempotencyKey: true,
+        ipAddress: true,
+        endpoint: true,
+        method: true,
+        userTier: true,
+        decision: true,
+        reason: true,
+        algorithm: true,
+        limit: true,
+        remaining: true,
+        retryAfter: true,
+        responseTimeMs: true,
+        metadata: true,
+        createdAt: true,
         apiKey: {
           select: {
             id: true,
@@ -173,6 +200,35 @@ export class AnalyticsService {
         },
       },
     });
+    const queryDurationMs = performance.now() - queryStartedAt;
+    const totalDurationMs = performance.now() - startedAt;
+
+    this.logger.log(
+      [
+        'analytics.logs',
+        `projectId=${projectId}`,
+        `limit=${limit}`,
+        `accessMs=${accessDurationMs.toFixed(2)}`,
+        `queryMs=${queryDurationMs.toFixed(2)}`,
+        `totalMs=${totalDurationMs.toFixed(2)}`,
+      ].join(' '),
+    );
+
+    return logs.map((log) => ({
+      ...log,
+      apiKey: log.apiKey
+        ? {
+            ...log.apiKey,
+            status: log.apiKey.status as ApiKeyStatus,
+          }
+        : null,
+      rule: log.rule
+        ? {
+            ...log.rule,
+            scope: log.rule.scope as RuleScope,
+          }
+        : null,
+    }));
   }
 
   async createSnapshot(

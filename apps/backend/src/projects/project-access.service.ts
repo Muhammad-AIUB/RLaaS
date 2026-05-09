@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ProjectRole } from '@prisma/client';
@@ -9,6 +10,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ProjectAccessService {
+  private readonly logger = new Logger(ProjectAccessService.name);
+
   constructor(private readonly prismaService: PrismaService) {}
 
   async assertAccess(
@@ -16,24 +19,29 @@ export class ProjectAccessService {
     projectId: string,
     allowedRoles: readonly ProjectRole[],
   ) {
-    const membership = await this.prismaService.projectMember.findFirst({
+    const accessCheckStart = Date.now();
+    const userLookupStart = Date.now();
+    const normalizedUserId = userId;
+    const userLookupMs = Date.now() - userLookupStart;
+
+    const memberLookupStart = Date.now();
+    const membership = await this.prismaService.projectMember.findUnique({
       where: {
-        projectId,
-        userId,
-      },
-      include: {
-        project: {
-          select: {
-            id: true,
-            ownerId: true,
-            name: true,
-            slug: true,
-            environment: true,
-            isActive: true,
-          },
+        projectId_userId: {
+          projectId,
+          userId: normalizedUserId,
         },
       },
+      select: {
+        role: true,
+      },
     });
+    const memberLookupMs = Date.now() - memberLookupStart;
+    const totalAccessCheckMs = Date.now() - accessCheckStart;
+
+    this.logger.debug(
+      `Project access check timings userLookupMs=${userLookupMs} projectMemberLookupMs=${memberLookupMs} totalMs=${totalAccessCheckMs} projectId=${projectId}`,
+    );
 
     if (!membership) {
       throw new NotFoundException('Project not found');

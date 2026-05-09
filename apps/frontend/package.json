@@ -1,6 +1,7 @@
 {
-  "name": "@rlaas/dashboard",
+  "name": "@rlaas/frontend",
   "version": "0.0.1",
+  "description": "RLaaS Platform frontend (Next.js operator dashboard)",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",

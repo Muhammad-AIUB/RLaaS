@@ -34,11 +34,11 @@ services:
       retries: 10
       start_period: 5s
 
-  api:
+  backend:
     build:
       context: .
-      dockerfile: apps/api/Dockerfile
-    container_name: rlaas-api
+      dockerfile: apps/backend/Dockerfile
+    container_name: rlaas-backend
     restart: unless-stopped
     depends_on:
       postgres:
@@ -65,19 +65,19 @@ services:
       retries: 10
       start_period: 20s
 
-  dashboard:
+  frontend:
     build:
       context: .
-      dockerfile: apps/dashboard/Dockerfile
-    container_name: rlaas-dashboard
+      dockerfile: apps/frontend/Dockerfile
+    container_name: rlaas-frontend
     restart: unless-stopped
     depends_on:
-      api:
+      backend:
         condition: service_healthy
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: http://localhost:3000
-      NEXT_INTERNAL_API_URL: http://api:3000
+      NEXT_INTERNAL_API_URL: http://backend:3000
     ports:
       - "3001:3001"
     healthcheck:

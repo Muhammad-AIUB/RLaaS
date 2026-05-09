@@ -9,4 +9,4 @@ Current script:
 It simulates:
 
 - allowed traffic using a normal IP and `pro` tier
-- blocked traffic using the seeded abusive IP rule
+- blocked traffic using a separately configured rule that matches the blocked payload

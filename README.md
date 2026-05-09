@@ -135,13 +135,15 @@ copy examples\express-demo\.env.example examples\express-demo\.env
 docker compose up --build
 ```
 
-### 4. Generate Prisma client, migrate, and seed
+### 4. Generate Prisma client, migrate, and run the seed step
 
 ```bash
 pnpm --filter @rlaas/api prisma:generate
 pnpm --filter @rlaas/api prisma:migrate:dev
 pnpm --filter @rlaas/api db:seed
 ```
+
+The seed step is intentionally a no-op and does not create demo or mock data.
 
 ### 5. Open the platform
 
@@ -151,16 +153,6 @@ pnpm --filter @rlaas/api db:seed
 - Swagger: `http://localhost:3000/docs`
 - Health: `http://localhost:3000/api/v1/health`
 
-## Seeded demo account
-
-The seed script prints the active values after it runs.
-
-Expected demo defaults:
-
-- Email: `demo@rlaas.local`
-- Password: `DemoPass123!`
-- Raw API key: `rlaas_live_demo_seed_key_1234567890`
-
 ## Core API example
 
 Gateway check:
@@ -168,7 +160,7 @@ Gateway check:
 ```bash
 curl -X POST http://localhost:3000/api/v1/gateway/check ^
   -H "Content-Type: application/json" ^
-  -d "{\"apiKey\":\"rlaas_live_demo_seed_key_1234567890\",\"ip\":\"203.0.113.10\",\"endpoint\":\"/api/products\",\"method\":\"GET\",\"userTier\":\"free\"}"
+  -d "{\"apiKey\":\"YOUR_API_KEY\",\"ip\":\"203.0.113.10\",\"endpoint\":\"/api/products\",\"method\":\"GET\",\"userTier\":\"free\"}"
 ```
 
 Allowed response shape:

@@ -1,7 +1,7 @@
 {
-  "name": "@rlaas/api",
+  "name": "@rlaas/backend",
   "version": "0.0.1",
-  "description": "RLaaS Platform API",
+  "description": "RLaaS Platform backend (NestJS API + Gateway)",
   "author": "",
   "private": true,
   "license": "UNLICENSED",

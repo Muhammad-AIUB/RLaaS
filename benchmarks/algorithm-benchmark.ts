@@ -1,12 +1,12 @@
 import { createHash } from 'crypto';
 import Redis from 'ioredis';
-import { FixedWindowAlgorithmService } from '../apps/api/src/algorithms/fixed-window/fixed-window-algorithm.service';
-import { SlidingWindowCounterAlgorithmService } from '../apps/api/src/algorithms/sliding-window-counter/sliding-window-counter-algorithm.service';
-import { SlidingWindowLogAlgorithmService } from '../apps/api/src/algorithms/sliding-window-log/sliding-window-log-algorithm.service';
-import { TokenBucketAlgorithmService } from '../apps/api/src/algorithms/token-bucket/token-bucket-algorithm.service';
-import { RateLimitAlgorithm } from '../apps/api/src/algorithms/algorithm.enum';
-import type { RateLimitAlgorithmHandler } from '../apps/api/src/algorithms/interfaces/rate-limit-algorithm.interface';
-import type { RateLimitParams } from '../apps/api/src/algorithms/interfaces/rate-limit-params.interface';
+import { FixedWindowAlgorithmService } from '../apps/backend/src/algorithms/fixed-window/fixed-window-algorithm.service';
+import { SlidingWindowCounterAlgorithmService } from '../apps/backend/src/algorithms/sliding-window-counter/sliding-window-counter-algorithm.service';
+import { SlidingWindowLogAlgorithmService } from '../apps/backend/src/algorithms/sliding-window-log/sliding-window-log-algorithm.service';
+import { TokenBucketAlgorithmService } from '../apps/backend/src/algorithms/token-bucket/token-bucket-algorithm.service';
+import { RateLimitAlgorithm } from '../apps/backend/src/algorithms/algorithm.enum';
+import type { RateLimitAlgorithmHandler } from '../apps/backend/src/algorithms/interfaces/rate-limit-algorithm.interface';
+import type { RateLimitParams } from '../apps/backend/src/algorithms/interfaces/rate-limit-params.interface';
 
 type BenchmarkRow = {
   algorithm: string;

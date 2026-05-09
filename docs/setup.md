@@ -51,7 +51,7 @@ This starts:
 ### 4. Generate Prisma client
 
 ```bash
-pnpm --filter @rlaas/api prisma:generate
+pnpm --filter @rlaas/backend prisma:generate
 ```
 
 ### 5. Run migrations
@@ -59,31 +59,22 @@ pnpm --filter @rlaas/api prisma:generate
 Development migration flow:
 
 ```bash
-pnpm --filter @rlaas/api prisma:migrate:dev
+pnpm --filter @rlaas/backend prisma:migrate:dev
 ```
 
 Production-style migration flow:
 
 ```bash
-pnpm --filter @rlaas/api prisma:migrate:deploy
+pnpm --filter @rlaas/backend prisma:migrate:deploy
 ```
 
-### 6. Seed demo data
+### 6. Run the seed step
 
 ```bash
-pnpm --filter @rlaas/api db:seed
+pnpm --filter @rlaas/backend db:seed
 ```
 
-Seeded values:
-
-- demo user email
-- demo password
-- demo admin and viewer collaborators
-- demo project
-- demo API key
-- starter rules
-- sample logs
-- sample analytics snapshot
+The seed script is intentionally a no-op and does not create mock or demo data.
 
 ### 7. Open the platform
 
@@ -102,16 +93,16 @@ Seeded values:
 ### Backend
 
 ```bash
-pnpm --filter @rlaas/api start:dev
-pnpm --filter @rlaas/api build
-pnpm --filter @rlaas/api test -- --runInBand
+pnpm --filter @rlaas/backend start:dev
+pnpm --filter @rlaas/backend build
+pnpm --filter @rlaas/backend test -- --runInBand
 ```
 
 ### Dashboard
 
 ```bash
-pnpm --filter @rlaas/dashboard dev
-pnpm --filter @rlaas/dashboard build
+pnpm --filter @rlaas/frontend dev
+pnpm --filter @rlaas/frontend build
 ```
 
 ### Shared packages
@@ -154,7 +145,7 @@ curl -X POST http://localhost:3000/api/v1/auth/register ^
 ```bash
 curl -X POST http://localhost:3000/api/v1/auth/login ^
   -H "Content-Type: application/json" ^
-  -d "{\"email\":\"demo@rlaas.local\",\"password\":\"DemoPass123!\"}"
+  -d "{\"email\":\"your-user@example.com\",\"password\":\"your_password\"}"
 ```
 
 ### Create project
@@ -171,7 +162,7 @@ curl -X POST http://localhost:3000/api/v1/projects ^
 ```bash
 curl -X POST http://localhost:3000/api/v1/gateway/check ^
   -H "Content-Type: application/json" ^
-  -d "{\"apiKey\":\"rlaas_live_demo_seed_key_1234567890\",\"ip\":\"203.0.113.10\",\"endpoint\":\"/api/products\",\"method\":\"GET\",\"userTier\":\"free\"}"
+  -d "{\"apiKey\":\"YOUR_API_KEY\",\"ip\":\"203.0.113.10\",\"endpoint\":\"/api/products\",\"method\":\"GET\",\"userTier\":\"free\"}"
 ```
 
 ## SDK usage example
@@ -195,4 +186,4 @@ app.use(
 
 If asked how someone should evaluate the project locally, a good answer is:
 
-"Clone it, start Docker, run Prisma generate and migrations, seed the demo data, then open the dashboard. From there you can manage projects and rules, hit the gateway directly, run the Express demo, run k6 load tests, and benchmark the algorithms."
+"Clone it, start Docker, run Prisma generate and migrations, run the optional seed step, then open the dashboard. From there you can create real projects and rules, hit the gateway directly, run the Express demo, run k6 load tests, and benchmark the algorithms."

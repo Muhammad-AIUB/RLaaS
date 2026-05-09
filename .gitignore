@@ -5,8 +5,8 @@ dist/
 .next/
 coverage/
 *.log
-apps/api/.env
-apps/api/dist/
-apps/dashboard/.env.local
+apps/backend/.env
+apps/backend/dist/
+apps/frontend/.env.local
 postgres_data/
 redis_data/

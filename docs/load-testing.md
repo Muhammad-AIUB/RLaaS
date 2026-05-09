@@ -20,7 +20,7 @@ It includes two scenarios:
    Uses a non-blocked IP and `pro` tier against `/api/orders`.
 
 2. `blocked_requests`
-   Uses the seeded abusive IP `203.0.113.10` and `free` tier against `/api/products`.
+   Uses a payload that should match a real blocking rule in your environment.
 
 ## Prerequisites
 
@@ -30,10 +30,26 @@ It includes two scenarios:
 docker compose up --build
 ```
 
-2. Ensure seed data exists:
+2. Create a real API key and rules that match your intended load-test traffic.
+
+At minimum, provide:
+
+- a valid API key through `K6_API_KEY`
+- an allowed payload for the `allowed_requests` scenario
+- a blocked payload for the `blocked_requests` scenario
+
+Example:
 
 ```bash
-pnpm --filter @rlaas/api db:seed
+$env:K6_API_KEY="your_real_api_key"
+$env:K6_ALLOWED_IP="198.51.100.10"
+$env:K6_ALLOWED_ENDPOINT="/api/orders"
+$env:K6_ALLOWED_METHOD="GET"
+$env:K6_ALLOWED_USER_TIER="pro"
+$env:K6_BLOCKED_IP="203.0.113.10"
+$env:K6_BLOCKED_ENDPOINT="/api/products"
+$env:K6_BLOCKED_METHOD="GET"
+$env:K6_BLOCKED_USER_TIER="free"
 ```
 
 3. Install `k6`:
@@ -67,7 +83,7 @@ Override the gateway URL or API key:
 
 ```bash
 $env:K6_GATEWAY_URL="http://localhost:3000/api/v1/gateway/check"
-$env:K6_API_KEY="rlaas_live_demo_seed_key_1234567890"
+$env:K6_API_KEY="your_real_api_key"
 k6 run tests/load/gateway-check.k6.js
 ```
 

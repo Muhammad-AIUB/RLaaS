@@ -30,38 +30,38 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata for api
-        id: api-meta
+      - name: Extract Docker metadata for backend
+        id: backend-meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/rlaas-api
+          images: ghcr.io/${{ github.repository_owner }}/rlaas-backend
           tags: |
             type=ref,event=branch
             type=sha
 
-      - name: Build and push api image
+      - name: Build and push backend image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/api/Dockerfile
+          file: apps/backend/Dockerfile
           push: true
-          tags: ${{ steps.api-meta.outputs.tags }}
-          labels: ${{ steps.api-meta.outputs.labels }}
+          tags: ${{ steps.backend-meta.outputs.tags }}
+          labels: ${{ steps.backend-meta.outputs.labels }}
 
-      - name: Extract Docker metadata for dashboard
-        id: dashboard-meta
+      - name: Extract Docker metadata for frontend
+        id: frontend-meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/rlaas-dashboard
+          images: ghcr.io/${{ github.repository_owner }}/rlaas-frontend
           tags: |
             type=ref,event=branch
             type=sha
 
-      - name: Build and push dashboard image
+      - name: Build and push frontend image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/dashboard/Dockerfile
+          file: apps/frontend/Dockerfile
           push: true
-          tags: ${{ steps.dashboard-meta.outputs.tags }}
-          labels: ${{ steps.dashboard-meta.outputs.labels }}
+          tags: ${{ steps.frontend-meta.outputs.tags }}
+          labels: ${{ steps.frontend-meta.outputs.labels }}
