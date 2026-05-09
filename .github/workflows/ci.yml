@@ -22,24 +22,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: pnpm --filter @rlaas/api exec prisma generate
+        run: pnpm --filter @rlaas/backend exec prisma generate
 
       - name: Build shared packages
         run: |
           pnpm --filter @rlaas/shared-types build
           pnpm --filter @rlaas/express-sdk build
 
-      - name: Build api and dashboard
+      - name: Build backend and frontend
         run: |
-          pnpm --filter @rlaas/api build
-          pnpm --filter @rlaas/dashboard build
+          pnpm --filter @rlaas/backend build
+          pnpm --filter @rlaas/frontend build
 
-      - name: Run api tests
-        run: pnpm --filter @rlaas/api test -- --runInBand
+      - name: Run backend tests
+        run: pnpm --filter @rlaas/backend test -- --runInBand
