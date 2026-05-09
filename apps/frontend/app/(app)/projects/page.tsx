@@ -145,7 +145,7 @@ export default function ProjectsPage() {
           title="No projects yet"
           description="Create your first project to start issuing API keys and configuring rate-limit rules."
           actionLabel="Create a project"
-          href="#"
+          onAction={() => setShowForm(true)}
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

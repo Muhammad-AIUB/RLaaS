@@ -6,6 +6,7 @@ export interface EmptyStateProps {
   description: string;
   href?: string;
   actionLabel?: string;
+  onAction?: () => void;
 }
 
 export function EmptyState({
@@ -13,6 +14,7 @@ export function EmptyState({
   description,
   href,
   actionLabel,
+  onAction,
 }: EmptyStateProps) {
   return (
     <div className="card flex flex-col items-center justify-center px-6 py-12 text-center sm:py-16">
@@ -25,7 +27,11 @@ export function EmptyState({
       <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-500">
         {description}
       </p>
-      {href && actionLabel ? (
+      {onAction && actionLabel ? (
+        <button type="button" className="btn-primary mt-5" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : href && actionLabel ? (
         <Link href={href} className="btn-primary mt-5">
           {actionLabel}
         </Link>

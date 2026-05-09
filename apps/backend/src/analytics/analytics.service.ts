@@ -155,6 +155,7 @@ export class AnalyticsService {
     const accessDurationMs = performance.now() - accessStartedAt;
     const limit = query.limit ?? 20;
     const queryStartedAt = performance.now();
+    const logFetchStartedAt = performance.now();
 
     const logs = await this.prismaService.requestLog.findMany({
       where: this.buildWhere(projectId, query),
@@ -182,6 +183,7 @@ export class AnalyticsService {
         createdAt: true,
       },
     });
+    const logFetchDurationMs = performance.now() - logFetchStartedAt;
 
     const apiKeyIds = Array.from(
       new Set(
@@ -198,37 +200,52 @@ export class AnalyticsService {
       ),
     );
 
+    let apiKeyHydrationDurationMs = 0;
+    let ruleHydrationDurationMs = 0;
     const [apiKeys, rules] = await Promise.all([
-      apiKeyIds.length > 0
-        ? this.prismaService.apiKey.findMany({
-            where: {
-              id: {
-                in: apiKeyIds,
-              },
-            },
-            select: {
-              id: true,
-              name: true,
-              keyPrefix: true,
-              status: true,
-            },
-          })
-        : Promise.resolve([]),
-      ruleIds.length > 0
-        ? this.prismaService.rateLimitRule.findMany({
-            where: {
-              id: {
-                in: ruleIds,
-              },
-            },
-            select: {
-              id: true,
-              name: true,
-              scope: true,
-              priority: true,
-            },
-          })
-        : Promise.resolve([]),
+      (async () => {
+        const apiKeyHydrationStartedAt = performance.now();
+        const result =
+          apiKeyIds.length > 0
+            ? await this.prismaService.apiKey.findMany({
+                where: {
+                  id: {
+                    in: apiKeyIds,
+                  },
+                },
+                select: {
+                  id: true,
+                  name: true,
+                  keyPrefix: true,
+                  status: true,
+                },
+              })
+            : [];
+        apiKeyHydrationDurationMs =
+          performance.now() - apiKeyHydrationStartedAt;
+        return result;
+      })(),
+      (async () => {
+        const ruleHydrationStartedAt = performance.now();
+        const result =
+          ruleIds.length > 0
+            ? await this.prismaService.rateLimitRule.findMany({
+                where: {
+                  id: {
+                    in: ruleIds,
+                  },
+                },
+                select: {
+                  id: true,
+                  name: true,
+                  scope: true,
+                  priority: true,
+                },
+              })
+            : [];
+        ruleHydrationDurationMs = performance.now() - ruleHydrationStartedAt;
+        return result;
+      })(),
     ]);
 
     const apiKeyById = new Map<
@@ -265,6 +282,9 @@ export class AnalyticsService {
         `projectId=${projectId}`,
         `limit=${limit}`,
         `accessMs=${accessDurationMs.toFixed(2)}`,
+        `logFetchMs=${logFetchDurationMs.toFixed(2)}`,
+        `apiKeyHydrationMs=${apiKeyHydrationDurationMs.toFixed(2)}`,
+        `ruleHydrationMs=${ruleHydrationDurationMs.toFixed(2)}`,
         `queryMs=${queryDurationMs.toFixed(2)}`,
         `totalMs=${totalDurationMs.toFixed(2)}`,
       ].join(' '),

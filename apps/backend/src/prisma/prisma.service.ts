@@ -9,20 +9,25 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   constructor() {
-    super({
-      log: [{ emit: 'event', level: 'query' }],
-    });
+    const queryDebugEnabled = process.env.PRISMA_QUERY_DEBUG === 'true';
 
-    // Enable with PRISMA_ACCESS_DIAGNOSTICS=true for targeted prod-like diagnosis.
-    if (process.env.PRISMA_ACCESS_DIAGNOSTICS === 'true') {
+    super(
+      queryDebugEnabled
+        ? {
+            log: [{ emit: 'event', level: 'query' }],
+          }
+        : undefined,
+    );
+
+    if (queryDebugEnabled) {
       this.$on('query' as never, (event: Prisma.QueryEvent) => {
-        if (!event.query.includes('"project_members"')) {
-          return;
-        }
-
         const compactQuery = event.query.replace(/\s+/g, ' ').trim();
+        const queryPreview =
+          compactQuery.length > 240
+            ? `${compactQuery.slice(0, 240)}...`
+            : compactQuery;
         this.logger.debug(
-          `Prisma project_members query durationMs=${event.duration} params=${event.params} sql="${compactQuery}"`,
+          `Prisma query durationMs=${event.duration} target=${event.target} sqlPreview="${queryPreview}"`,
         );
       });
     }

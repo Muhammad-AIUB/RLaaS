@@ -12,6 +12,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:diagnose:latency": "node scripts/diagnose-db-latency.js",
+    "prisma:explain:analytics-logs": "node scripts/explain-analytics-logs.js",
     "prisma:studio": "prisma studio",
     "start": "nest start",
     "start:dev": "nest start --watch",
