@@ -2,6 +2,20 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { AUTH_COOKIE, getApiBaseUrl } from '@/lib/session';
 
+async function readResponsePayload(response: Response) {
+  const text = await response.text();
+
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { message: text };
+  }
+}
+
 export async function GET() {
   const token = (await cookies()).get(AUTH_COOKIE)?.value;
 
@@ -9,18 +23,28 @@ export async function GET() {
     return NextResponse.json({ authenticated: false }, { status: 401 });
   }
 
-  const response = await fetch(`${getApiBaseUrl()}/api/users/me`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-    cache: 'no-store',
-  });
+  try {
+    const response = await fetch(`${getApiBaseUrl()}/api/v1/users/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-store',
+    });
 
-  const payload = await response.json();
+    const payload = await readResponsePayload(response);
 
-  if (!response.ok) {
-    return NextResponse.json(payload, { status: response.status });
+    if (!response.ok) {
+      return NextResponse.json(
+        payload ?? { message: 'Unable to load session' },
+        { status: response.status },
+      );
+    }
+
+    return NextResponse.json(payload);
+  } catch {
+    return NextResponse.json(
+      { authenticated: false, message: 'Unable to reach the RLaaS API.' },
+      { status: 503 },
+    );
   }
-
-  return NextResponse.json(payload);
 }

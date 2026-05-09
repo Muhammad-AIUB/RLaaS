@@ -19,9 +19,7 @@ export default function RegisterPage() {
     try {
       const response = await fetch('/api/auth/register', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fullName: formData.get('fullName'),
           email: formData.get('email'),
@@ -47,53 +45,79 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="w-full max-w-2xl rounded-[36px] border border-white/80 bg-white/85 p-8 shadow-panel backdrop-blur">
-        <p className="text-xs uppercase tracking-[0.34em] text-pine">Create Account</p>
-        <h1 className="mt-4 text-3xl font-semibold text-ink">Start managing traffic</h1>
-        <p className="mt-3 text-sm text-slate-600">
-          Register an operator account for the RLaaS control plane.
-        </p>
-        <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-          <label className="block">
-            <span className="mb-2 block text-sm text-slate-700">Full name</span>
-            <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-pine"
-              name="fullName"
-              required
-            />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm text-slate-700">Email</span>
-            <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-pine"
-              name="email"
-              type="email"
-              required
-            />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm text-slate-700">Password</span>
-            <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-pine"
-              name="password"
-              type="password"
-              minLength={8}
-              required
-            />
-          </label>
-          {error ? <ErrorState message={error} /> : null}
-          <button
-            className="w-full rounded-full bg-pine px-5 py-3 text-sm font-medium text-white transition hover:bg-ink disabled:opacity-60"
-            disabled={pending}
-            type="submit"
-          >
-            {pending ? 'Creating account...' : 'Create account'}
-          </button>
-        </form>
-        <p className="mt-6 text-sm text-slate-600">
-          Already registered?{' '}
-          <Link className="font-medium text-pine" href="/login">
+    <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10 sm:px-6">
+      <div className="w-full max-w-md">
+        <div className="mb-8 flex items-center justify-center gap-2">
+          <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none">
+            <rect x="2" y="2" width="20" height="20" rx="6" fill="#4f46e5" />
+            <path d="M7 12h10M7 8h10M7 16h6" stroke="white" strokeWidth="1.75" strokeLinecap="round" />
+          </svg>
+          <span className="text-base font-semibold text-slate-900">RLaaS</span>
+        </div>
+
+        <div className="card p-6 sm:p-8">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+            Create your account
+          </h1>
+          <p className="mt-1.5 text-sm text-slate-500">
+            Register an operator account for the RLaaS control plane.
+          </p>
+
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="fullName" className="label">
+                Full name
+              </label>
+              <input
+                id="fullName"
+                className="field"
+                name="fullName"
+                autoComplete="name"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="email" className="label">
+                Email
+              </label>
+              <input
+                id="email"
+                className="field"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="label">
+                Password
+              </label>
+              <input
+                id="password"
+                className="field"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+              <p className="mt-1.5 text-xs text-slate-500">
+                Must be at least 8 characters.
+              </p>
+            </div>
+
+            {error ? <ErrorState message={error} /> : null}
+
+            <button type="submit" className="btn-primary w-full" disabled={pending}>
+              {pending ? 'Creating account…' : 'Create account'}
+            </button>
+          </form>
+        </div>
+
+        <p className="mt-6 text-center text-sm text-slate-500">
+          Already have an account?{' '}
+          <Link className="font-medium text-brand-700 hover:text-brand-800" href="/login">
             Sign in
           </Link>
         </p>

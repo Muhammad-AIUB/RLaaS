@@ -6,7 +6,9 @@ import { AlgorithmBarChart } from '@/components/charts/algorithm-bar-chart';
 import { ErrorState } from '@/components/error-state';
 import { LoadingState } from '@/components/loading-state';
 import { MetricCard } from '@/components/metric-card';
-import { Panel } from '@/components/panel';
+import { PageHeader } from '@/components/page-header';
+import { Panel, PanelHeader } from '@/components/panel';
+import { ProjectTabs } from '@/components/project-tabs';
 import { apiFetch } from '@/lib/api-client';
 import {
   AlgorithmPerformanceRecord,
@@ -62,7 +64,9 @@ export default function ProjectAnalyticsPage() {
       setSnapshots(snapshotData);
       setError('');
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Failed to load analytics');
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'Failed to load analytics',
+      );
     } finally {
       setLoading(false);
     }
@@ -83,25 +87,39 @@ export default function ProjectAnalyticsPage() {
         `/api/proxy/projects/${params.projectId}/analytics/snapshots`,
         {
           method: 'POST',
-          body: JSON.stringify({
-            window: formData.get('window'),
-          }),
+          body: JSON.stringify({ window: formData.get('window') }),
         },
       );
       await load();
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Failed to generate snapshot');
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to generate snapshot',
+      );
     } finally {
       setPending(false);
     }
   }
 
   if (loading) {
-    return <LoadingState label="Loading analytics..." />;
+    return (
+      <>
+        <PageHeader eyebrow="Insights" title="Analytics" />
+        <ProjectTabs projectId={params.projectId as string} />
+        <LoadingState label="Loading analytics…" />
+      </>
+    );
   }
 
   if (error) {
-    return <ErrorState message={error} />;
+    return (
+      <>
+        <PageHeader eyebrow="Insights" title="Analytics" />
+        <ProjectTabs projectId={params.projectId as string} />
+        <ErrorState message={error} />
+      </>
+    );
   }
 
   if (!overview) {
@@ -109,107 +127,220 @@ export default function ProjectAnalyticsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total requests" value={overview.totalRequests.toLocaleString()} />
-        <MetricCard label="Allowed" value={overview.allowedRequests.toLocaleString()} accent="#235347" />
-        <MetricCard label="Blocked" value={overview.blockedRequests.toLocaleString()} accent="#d95d39" />
-        <MetricCard label="Block rate" value={`${overview.blockRate}%`} accent="#9dc08b" />
+    <>
+      <PageHeader
+        crumbs={[
+          { href: '/projects', label: 'Projects' },
+          { href: `/projects/${params.projectId}`, label: 'Project' },
+          { label: 'Analytics' },
+        ]}
+        eyebrow="Insights"
+        title="Analytics"
+        description="Inspect trends, top offenders, and algorithm performance."
+      />
+      <ProjectTabs projectId={params.projectId as string} />
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Total requests"
+          value={overview.totalRequests.toLocaleString()}
+          tone="brand"
+        />
+        <MetricCard
+          label="Allowed"
+          value={overview.allowedRequests.toLocaleString()}
+          tone="success"
+        />
+        <MetricCard
+          label="Blocked"
+          value={overview.blockedRequests.toLocaleString()}
+          tone="danger"
+        />
+        <MetricCard
+          label="Block rate"
+          value={`${overview.blockRate}%`}
+          tone="warning"
+        />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel>
-          <p className="text-xs uppercase tracking-[0.32em] text-pine">Algorithm performance</p>
-          <h2 className="mt-2 text-2xl font-semibold text-ink">Compare strategy load</h2>
-          <div className="mt-6">
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-5">
+        <Panel className="lg:col-span-3">
+          <PanelHeader
+            eyebrow="Performance"
+            title="Algorithm comparison"
+          />
+          <div className="mt-4">
             <AlgorithmBarChart data={algorithms} />
           </div>
         </Panel>
-        <Panel>
-          <p className="text-xs uppercase tracking-[0.32em] text-pine">Snapshot generation</p>
-          <h2 className="mt-2 text-2xl font-semibold text-ink">Freeze a reporting window</h2>
-          <form className="mt-6 flex flex-wrap gap-3" onSubmit={generateSnapshot}>
-            <select className="rounded-2xl border border-slate-200 px-4 py-3" name="window" defaultValue="DAILY">
-              <option value="HOURLY">Hourly</option>
-              <option value="DAILY">Daily</option>
-              <option value="WEEKLY">Weekly</option>
-              <option value="MONTHLY">Monthly</option>
-            </select>
-            <button className="rounded-full bg-pine px-5 py-3 text-sm font-medium text-white disabled:opacity-60" disabled={pending} type="submit">
-              {pending ? 'Generating...' : 'Generate snapshot'}
+        <Panel className="lg:col-span-2">
+          <PanelHeader
+            eyebrow="Snapshots"
+            title="Generate a window"
+            description="Freeze a reporting window for compliance or sharing."
+          />
+          <form
+            className="mt-5 flex flex-wrap items-end gap-3"
+            onSubmit={generateSnapshot}
+          >
+            <div className="flex-1 min-w-[160px]">
+              <label className="label">Window</label>
+              <select className="field" name="window" defaultValue="DAILY">
+                <option value="HOURLY">Hourly</option>
+                <option value="DAILY">Daily</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="MONTHLY">Monthly</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={pending}
+            >
+              {pending ? 'Generating…' : 'Generate'}
             </button>
           </form>
-          <div className="mt-6 space-y-3">
-            {snapshots.slice(0, 4).map((snapshot) => (
-              <div key={snapshot.id} className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-sm font-medium text-ink">{snapshot.window}</p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {new Date(snapshot.periodStart).toLocaleString()} to{' '}
-                  {new Date(snapshot.periodEnd).toLocaleString()}
-                </p>
-              </div>
-            ))}
+          <div className="mt-5 space-y-2">
+            {snapshots.slice(0, 4).length === 0 ? (
+              <p className="text-xs text-slate-500">No snapshots yet.</p>
+            ) : (
+              snapshots.slice(0, 4).map((snapshot) => (
+                <div
+                  key={snapshot.id}
+                  className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-slate-800">
+                      {snapshot.window}
+                    </p>
+                    <span className="badge-neutral">snapshot</span>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {new Date(snapshot.periodStart).toLocaleString()} →{' '}
+                    {new Date(snapshot.periodEnd).toLocaleString()}
+                  </p>
+                </div>
+              ))
+            )}
           </div>
         </Panel>
       </div>
-      <div className="grid gap-6 xl:grid-cols-2">
+
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Panel>
-          <p className="text-xs uppercase tracking-[0.32em] text-pine">Top offending IPs</p>
-          <div className="mt-4 space-y-3">
-            {ips.map((item) => (
-              <div key={item.ip} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                <span className="text-sm text-slate-700">{item.ip}</span>
-                <span className="text-sm font-medium text-ink">{item.requests}</span>
-              </div>
-            ))}
-          </div>
+          <PanelHeader eyebrow="Top offenders" title="IP addresses" />
+          <ul className="mt-4 divide-y divide-slate-100">
+            {ips.length === 0 ? (
+              <li className="py-3 text-sm text-slate-500">No data yet.</li>
+            ) : (
+              ips.map((item) => (
+                <li
+                  key={item.ip}
+                  className="flex items-center justify-between py-2.5 text-sm"
+                >
+                  <span className="font-mono text-slate-700">{item.ip}</span>
+                  <span className="badge-neutral">{item.requests}</span>
+                </li>
+              ))
+            )}
+          </ul>
         </Panel>
         <Panel>
-          <p className="text-xs uppercase tracking-[0.32em] text-pine">Most used endpoints</p>
-          <div className="mt-4 space-y-3">
-            {endpoints.map((item) => (
-              <div key={`${item.method}-${item.endpoint}`} className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-sm font-medium text-ink">
-                  {item.method} {item.endpoint}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">{item.requests} requests</p>
-              </div>
-            ))}
-          </div>
+          <PanelHeader eyebrow="Most used" title="Endpoints" />
+          <ul className="mt-4 divide-y divide-slate-100">
+            {endpoints.length === 0 ? (
+              <li className="py-3 text-sm text-slate-500">No data yet.</li>
+            ) : (
+              endpoints.map((item) => (
+                <li
+                  key={`${item.method}-${item.endpoint}`}
+                  className="flex items-center justify-between gap-3 py-2.5 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate">
+                      <span className="badge-info mr-2 !py-0 !text-2xs">
+                        {item.method}
+                      </span>
+                      <span className="font-mono text-slate-800">
+                        {item.endpoint}
+                      </span>
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-slate-500">
+                    {item.requests}
+                  </span>
+                </li>
+              ))
+            )}
+          </ul>
         </Panel>
       </div>
-      <Panel>
-        <p className="text-xs uppercase tracking-[0.32em] text-pine">Recent request logs</p>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="text-slate-500">
-              <tr>
-                <th className="pb-3">Time</th>
-                <th className="pb-3">IP</th>
-                <th className="pb-3">Endpoint</th>
-                <th className="pb-3">Decision</th>
-                <th className="pb-3">Algorithm</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((item) => (
-                <tr key={item.id} className="border-t border-slate-100">
-                  <td className="py-3 text-slate-600">{new Date(item.createdAt).toLocaleString()}</td>
-                  <td className="py-3 text-slate-600">{item.ipAddress}</td>
-                  <td className="py-3 text-slate-600">
-                    {item.method} {item.endpoint}
-                  </td>
-                  <td className="py-3">
-                    <span className={item.decision === 'BLOCKED' ? 'text-ember' : 'text-pine'}>
-                      {item.decision}
-                    </span>
-                  </td>
-                  <td className="py-3 text-slate-600">{item.algorithm}</td>
+
+      <div className="mt-6">
+        <Panel padding={false}>
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">
+                Activity
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-slate-900">
+                Recent request logs
+              </h2>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>IP</th>
+                  <th>Endpoint</th>
+                  <th>Decision</th>
+                  <th>Algorithm</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Panel>
-    </div>
+              </thead>
+              <tbody>
+                {logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center text-slate-500">
+                      No requests yet.
+                    </td>
+                  </tr>
+                ) : (
+                  logs.map((item) => (
+                    <tr key={item.id}>
+                      <td className="whitespace-nowrap text-xs text-slate-500">
+                        {new Date(item.createdAt).toLocaleString()}
+                      </td>
+                      <td className="font-mono text-xs">{item.ipAddress}</td>
+                      <td className="min-w-[200px]">
+                        <span className="badge-info mr-2 !py-0 !text-2xs">
+                          {item.method}
+                        </span>
+                        <span className="font-mono text-xs">
+                          {item.endpoint}
+                        </span>
+                      </td>
+                      <td>
+                        <span
+                          className={
+                            item.decision === 'BLOCKED'
+                              ? 'badge-danger'
+                              : 'badge-success'
+                          }
+                        >
+                          {item.decision}
+                        </span>
+                      </td>
+                      <td className="text-xs text-slate-600">{item.algorithm}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      </div>
+    </>
   );
 }

@@ -2,9 +2,11 @@
 
 import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
+import { EmptyState } from '@/components/empty-state';
 import { ErrorState } from '@/components/error-state';
 import { LoadingState } from '@/components/loading-state';
-import { Panel } from '@/components/panel';
+import { PageHeader } from '@/components/page-header';
+import { Panel, PanelHeader } from '@/components/panel';
 import { apiFetch } from '@/lib/api-client';
 import { ProjectSummary } from '@/lib/types';
 
@@ -13,6 +15,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
+  const [showForm, setShowForm] = useState(false);
 
   async function loadProjects() {
     try {
@@ -21,7 +24,9 @@ export default function ProjectsPage() {
       setProjects(data);
       setError('');
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Failed to load projects');
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'Failed to load projects',
+      );
     } finally {
       setLoading(false);
     }
@@ -35,7 +40,8 @@ export default function ProjectsPage() {
     event.preventDefault();
     setPending(true);
     setError('');
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
     try {
       await apiFetch<ProjectSummary>('/api/proxy/projects', {
@@ -46,65 +52,155 @@ export default function ProjectsPage() {
           environment: formData.get('environment'),
         }),
       });
-      event.currentTarget.reset();
+      form.reset();
+      setShowForm(false);
       await loadProjects();
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Failed to create project');
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'Failed to create project',
+      );
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <div className="space-y-6">
-      <Panel>
-        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div>
-            <p className="text-xs uppercase tracking-[0.32em] text-pine">Projects</p>
-            <h1 className="mt-3 text-3xl font-semibold text-ink">Protect each API as its own surface.</h1>
-            <p className="mt-3 text-sm text-slate-600">
-              Projects isolate tenants by membership, environment, and policy scope.
-            </p>
-          </div>
-          <form className="grid gap-3 md:grid-cols-2" onSubmit={handleCreate}>
-            <input className="rounded-2xl border border-slate-200 px-4 py-3" name="name" placeholder="Project name" required />
-            <input className="rounded-2xl border border-slate-200 px-4 py-3" name="environment" placeholder="production" defaultValue="production" />
-            <textarea className="rounded-2xl border border-slate-200 px-4 py-3 md:col-span-2" name="description" placeholder="What does this API protect?" rows={3} />
-            <div className="md:col-span-2">
-              <button className="rounded-full bg-pine px-5 py-3 text-sm font-medium text-white disabled:opacity-60" disabled={pending} type="submit">
-                {pending ? 'Creating project...' : 'Create project'}
+    <>
+      <PageHeader
+        eyebrow="Workspace"
+        title="Projects"
+        description="Each project isolates one API surface — its keys, rules, members, and analytics."
+        actions={
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setShowForm((s) => !s)}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {showForm ? 'Close' : 'New project'}
+          </button>
+        }
+      />
+
+      {showForm ? (
+        <Panel className="mb-6">
+          <PanelHeader
+            eyebrow="Create"
+            title="New project"
+            description="Give it a name, environment, and a short description."
+          />
+          <form
+            className="mt-5 grid gap-4 sm:grid-cols-2"
+            onSubmit={handleCreate}
+          >
+            <div>
+              <label className="label" htmlFor="name">
+                Project name
+              </label>
+              <input id="name" name="name" required className="field" placeholder="Public API" />
+            </div>
+            <div>
+              <label className="label" htmlFor="environment">
+                Environment
+              </label>
+              <input
+                id="environment"
+                name="environment"
+                defaultValue="production"
+                className="field"
+                placeholder="production"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="label" htmlFor="description">
+                Description
+              </label>
+              <textarea
+                id="description"
+                name="description"
+                rows={3}
+                placeholder="What does this API protect?"
+                className="field resize-y"
+              />
+            </div>
+            <div className="flex flex-wrap gap-2 sm:col-span-2">
+              <button type="submit" className="btn-primary" disabled={pending}>
+                {pending ? 'Creating…' : 'Create project'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowForm(false)}
+              >
+                Cancel
               </button>
             </div>
           </form>
+        </Panel>
+      ) : null}
+
+      {error ? (
+        <div className="mb-6">
+          <ErrorState message={error} />
         </div>
-      </Panel>
-      {error ? <ErrorState message={error} /> : null}
+      ) : null}
+
       {loading ? (
-        <LoadingState label="Loading projects..." />
+        <LoadingState label="Loading projects…" />
+      ) : projects.length === 0 ? (
+        <EmptyState
+          title="No projects yet"
+          description="Create your first project to start issuing API keys and configuring rate-limit rules."
+          actionLabel="Create a project"
+          href="#"
+        />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {projects.map((project) => (
-            <Link key={project.id} href={`/projects/${project.id}`} className="block">
-              <Panel className="h-full transition hover:-translate-y-1 hover:shadow-2xl">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2 className="text-2xl font-semibold text-ink">{project.name}</h2>
-                    <p className="mt-2 text-sm text-slate-600">{project.description || 'No description yet.'}</p>
-                  </div>
-                  <span className="rounded-full bg-sand px-3 py-1 text-xs uppercase tracking-[0.24em] text-pine">
-                    {project.environment}
+            <Link
+              key={project.id}
+              href={`/projects/${project.id}`}
+              className="group card flex h-full flex-col p-5 transition hover:border-brand-300 hover:shadow-card-hover"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-brand-100">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  </svg>
+                </div>
+                <span className="badge-neutral">{project.environment}</span>
+              </div>
+              <h2 className="mt-4 text-base font-semibold text-slate-900 group-hover:text-brand-700">
+                {project.name}
+              </h2>
+              <p className="mt-1 line-clamp-2 text-sm text-slate-500">
+                {project.description || 'No description yet.'}
+              </p>
+              <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
+                <div className="flex items-center gap-4">
+                  <span>
+                    <strong className="font-semibold text-slate-700">
+                      {project._count?.apiKeys ?? 0}
+                    </strong>{' '}
+                    keys
+                  </span>
+                  <span>
+                    <strong className="font-semibold text-slate-700">
+                      {project._count?.rules ?? 0}
+                    </strong>{' '}
+                    rules
                   </span>
                 </div>
-                <div className="mt-6 flex gap-3 text-sm text-slate-500">
-                  <span>{project._count?.apiKeys ?? 0} keys</span>
-                  <span>{project._count?.rules ?? 0} rules</span>
-                  <span>{project.currentRole ?? 'VIEWER'} access</span>
-                </div>
-              </Panel>
+                <span className="badge-brand !py-0">
+                  {project.currentRole ?? 'VIEWER'}
+                </span>
+              </div>
             </Link>
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -4,7 +4,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ErrorState } from '@/components/error-state';
 import { LoadingState } from '@/components/loading-state';
-import { Panel } from '@/components/panel';
+import { PageHeader } from '@/components/page-header';
+import { Panel, PanelHeader } from '@/components/panel';
+import { ProjectTabs } from '@/components/project-tabs';
 import { apiFetch } from '@/lib/api-client';
 import { ApiKeyRecord } from '@/lib/types';
 
@@ -12,6 +14,7 @@ export default function ApiKeysPage() {
   const params = useParams<{ projectId: string }>();
   const [records, setRecords] = useState<ApiKeyRecord[]>([]);
   const [revealedKey, setRevealedKey] = useState('');
+  const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -25,7 +28,9 @@ export default function ApiKeysPage() {
       setRecords(data);
       setError('');
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Failed to load API keys');
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'Failed to load API keys',
+      );
     } finally {
       setLoading(false);
     }
@@ -39,7 +44,8 @@ export default function ApiKeysPage() {
     event.preventDefault();
     setPending(true);
     setError('');
-    const formData = new FormData(event.currentTarget);
+    const form = event.currentTarget;
+    const formData = new FormData(form);
 
     try {
       const data = await apiFetch<ApiKeyRecord>(
@@ -53,10 +59,12 @@ export default function ApiKeysPage() {
         },
       );
       setRevealedKey(data.key ?? '');
-      event.currentTarget.reset();
+      form.reset();
       await load();
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Failed to create API key');
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'Failed to create API key',
+      );
     } finally {
       setPending(false);
     }
@@ -66,70 +74,173 @@ export default function ApiKeysPage() {
     try {
       await apiFetch<ApiKeyRecord>(
         `/api/proxy/projects/${params.projectId}/api-keys/${apiKeyId}/revoke`,
-        {
-          method: 'PATCH',
-        },
+        { method: 'PATCH' },
       );
       await load();
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Failed to revoke API key');
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'Failed to revoke API key',
+      );
+    }
+  }
+
+  async function copyKey() {
+    try {
+      await navigator.clipboard.writeText(revealedKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* noop */
     }
   }
 
   return (
-    <div className="space-y-6">
-      <Panel>
-        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <div>
-            <p className="text-xs uppercase tracking-[0.32em] text-pine">API key management</p>
-            <h1 className="mt-3 text-3xl font-semibold text-ink">Issue access with intention.</h1>
-            <p className="mt-3 text-sm text-slate-600">
-              Create credentials for gateway calls and revoke them as soon as you suspect leakage.
-            </p>
+    <>
+      <PageHeader
+        crumbs={[
+          { href: '/projects', label: 'Projects' },
+          { href: `/projects/${params.projectId}`, label: 'Project' },
+          { label: 'API Keys' },
+        ]}
+        eyebrow="Credentials"
+        title="API keys"
+        description="Issue keys for gateway calls and revoke them as soon as you suspect leakage."
+      />
+      <ProjectTabs projectId={params.projectId as string} />
+
+      <Panel className="mb-6">
+        <PanelHeader
+          eyebrow="Create"
+          title="Generate a new API key"
+          description="The raw key is shown once — store it somewhere safe."
+        />
+        <form
+          className="mt-5 grid gap-4 sm:grid-cols-2"
+          onSubmit={handleCreate}
+        >
+          <div className="sm:col-span-1">
+            <label className="label" htmlFor="name">
+              Name
+            </label>
+            <input
+              id="name"
+              name="name"
+              required
+              className="field"
+              placeholder="Primary production key"
+            />
           </div>
-          <form className="grid gap-3 md:grid-cols-2" onSubmit={handleCreate}>
-            <input className="rounded-2xl border border-slate-200 px-4 py-3" name="name" placeholder="Primary production key" required />
-            <input className="rounded-2xl border border-slate-200 px-4 py-3" name="expiresAt" type="datetime-local" />
-            <div className="md:col-span-2">
-              <button className="rounded-full bg-pine px-5 py-3 text-sm font-medium text-white disabled:opacity-60" disabled={pending} type="submit">
-                {pending ? 'Generating key...' : 'Generate API key'}
-              </button>
-            </div>
-          </form>
-        </div>
+          <div className="sm:col-span-1">
+            <label className="label" htmlFor="expiresAt">
+              Expires (optional)
+            </label>
+            <input
+              id="expiresAt"
+              name="expiresAt"
+              type="datetime-local"
+              className="field"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <button type="submit" className="btn-primary" disabled={pending}>
+              {pending ? 'Generating…' : 'Generate API key'}
+            </button>
+          </div>
+        </form>
+
         {revealedKey ? (
-          <div className="mt-6 rounded-2xl border border-moss/50 bg-sand px-4 py-4 text-sm text-ink">
-            Raw key shown once: <span className="font-mono">{revealedKey}</span>
+          <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <div className="flex items-start gap-3">
+              <svg viewBox="0 0 24 24" className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 9v4M12 17h.01" />
+                <path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              </svg>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-amber-900">
+                  Copy this key now — it won't be shown again.
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="flex-1 truncate rounded-md border border-amber-200 bg-white px-3 py-2 font-mono text-xs text-slate-800">
+                    {revealedKey}
+                  </code>
+                  <button type="button" className="btn-secondary btn-sm" onClick={copyKey}>
+                    {copied ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         ) : null}
       </Panel>
-      {error ? <ErrorState message={error} /> : null}
+
+      {error ? (
+        <div className="mb-6">
+          <ErrorState message={error} />
+        </div>
+      ) : null}
+
       {loading ? (
-        <LoadingState label="Loading API keys..." />
-      ) : (
+        <LoadingState label="Loading API keys…" />
+      ) : records.length === 0 ? (
         <Panel>
-          <div className="space-y-4">
-            {records.map((item) => (
-              <div key={item.id} className="flex flex-col gap-4 rounded-3xl border border-slate-100 bg-slate-50 px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-lg font-semibold text-ink">{item.name}</p>
-                  <p className="mt-1 font-mono text-xs text-slate-500">{item.keyPrefix}...</p>
-                  <p className="mt-2 text-sm text-slate-600">
-                    Status: {item.status} · Last used: {item.lastUsedAt ? new Date(item.lastUsedAt).toLocaleString() : 'Never'}
-                  </p>
-                </div>
-                <button
-                  className="rounded-full border border-ember/30 px-4 py-2 text-sm text-ember transition hover:bg-ember hover:text-white"
-                  onClick={() => revoke(item.id)}
-                  type="button"
-                >
-                  Revoke
-                </button>
-              </div>
-            ))}
+          <p className="py-6 text-center text-sm text-slate-500">
+            No API keys yet. Generate one above to get started.
+          </p>
+        </Panel>
+      ) : (
+        <Panel padding={false}>
+          <div className="overflow-x-auto">
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Prefix</th>
+                  <th>Status</th>
+                  <th>Last used</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {records.map((item) => (
+                  <tr key={item.id}>
+                    <td className="font-medium text-slate-900">{item.name}</td>
+                    <td>
+                      <code className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs">
+                        {item.keyPrefix}…
+                      </code>
+                    </td>
+                    <td>
+                      <span
+                        className={
+                          item.status === 'ACTIVE'
+                            ? 'badge-success'
+                            : 'badge-neutral'
+                        }
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="text-slate-500">
+                      {item.lastUsedAt
+                        ? new Date(item.lastUsedAt).toLocaleString()
+                        : 'Never'}
+                    </td>
+                    <td className="text-right">
+                      <button
+                        type="button"
+                        className="btn-danger btn-sm"
+                        onClick={() => revoke(item.id)}
+                      >
+                        Revoke
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </Panel>
       )}
-    </div>
+    </>
   );
 }

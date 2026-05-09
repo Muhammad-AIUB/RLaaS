@@ -1,20 +1,46 @@
-import { Panel } from './panel';
+import clsx from 'clsx';
+import { ReactNode } from 'react';
 
-export function MetricCard(props: {
+type Tone = 'neutral' | 'success' | 'danger' | 'warning' | 'brand';
+
+const toneStyles: Record<Tone, { dot: string; text: string }> = {
+  neutral: { dot: 'bg-slate-400', text: 'text-slate-700' },
+  success: { dot: 'bg-emerald-500', text: 'text-emerald-700' },
+  danger: { dot: 'bg-red-500', text: 'text-red-700' },
+  warning: { dot: 'bg-amber-500', text: 'text-amber-700' },
+  brand: { dot: 'bg-brand-600', text: 'text-brand-700' },
+};
+
+export function MetricCard({
+  label,
+  value,
+  tone = 'neutral',
+  hint,
+  trend,
+}: {
   label: string;
   value: string;
+  tone?: Tone;
+  /** Legacy prop: still supported, mapped to tone via accent color name. */
   accent?: string;
+  hint?: string;
+  trend?: ReactNode;
 }) {
+  const t = toneStyles[tone];
+
   return (
-    <Panel className="relative overflow-hidden">
-      <div
-        className="absolute inset-x-6 top-0 h-1 rounded-full"
-        style={{ backgroundColor: props.accent ?? '#235347' }}
-      />
-      <p className="text-sm uppercase tracking-[0.24em] text-slate-500">
-        {props.label}
+    <div className="card p-5 sm:p-6 transition hover:shadow-card-hover">
+      <div className="flex items-center gap-2">
+        <span className={clsx('h-1.5 w-1.5 rounded-full', t.dot)} aria-hidden />
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          {label}
+        </p>
+      </div>
+      <p className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+        {value}
       </p>
-      <p className="mt-4 text-3xl font-semibold text-ink">{props.value}</p>
-    </Panel>
+      {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
+      {trend ? <div className={clsx('mt-2 text-xs font-medium', t.text)}>{trend}</div> : null}
+    </div>
   );
 }

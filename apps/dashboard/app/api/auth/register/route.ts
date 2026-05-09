@@ -2,33 +2,67 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { AUTH_COOKIE, getApiBaseUrl } from '@/lib/session';
 
-export async function POST(request: Request) {
-  const body = await request.text();
-  const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/register`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body,
-    cache: 'no-store',
-  });
+async function readResponsePayload(response: Response) {
+  const text = await response.text();
 
-  const payload = await response.json();
-
-  if (!response.ok) {
-    return NextResponse.json(payload, { status: response.status });
+  if (!text) {
+    return null;
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set(AUTH_COOKIE, payload.accessToken, {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: false,
-    path: '/',
-    maxAge: 60 * 60 * 24,
-  });
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { message: text };
+  }
+}
 
-  return NextResponse.json({
-    user: payload.user,
-  });
+export async function POST(request: Request) {
+  try {
+    const body = await request.text();
+    const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body,
+      cache: 'no-store',
+    });
+
+    const payload = await readResponsePayload(response);
+
+    if (!response.ok) {
+      return NextResponse.json(
+        payload ?? { message: 'Registration failed' },
+        { status: response.status },
+      );
+    }
+
+    const accessToken =
+      typeof payload?.accessToken === 'string' ? payload.accessToken : null;
+
+    if (!accessToken) {
+      return NextResponse.json(
+        { message: 'Authentication response did not include an access token.' },
+        { status: 502 },
+      );
+    }
+
+    const cookieStore = await cookies();
+    cookieStore.set(AUTH_COOKIE, accessToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+      path: '/',
+      maxAge: 60 * 60 * 24,
+    });
+
+    return NextResponse.json({
+      user: payload?.user ?? null,
+    });
+  } catch {
+    return NextResponse.json(
+      { message: 'Unable to reach the RLaaS API.' },
+      { status: 503 },
+    );
+  }
 }

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequestMetadata } from '../common/interfaces/request-metadata.interface';
@@ -16,21 +16,32 @@ type AuditEntry = {
 
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger(AuditService.name);
+
   constructor(private readonly prismaService: PrismaService) {}
 
-  log(entry: AuditEntry) {
-    return this.prismaService.auditLog.create({
-      data: {
-        action: entry.action,
-        actorId: entry.actorId ?? null,
-        projectId: entry.projectId ?? null,
-        resourceType: entry.resourceType,
-        resourceId: entry.resourceId ?? null,
-        ipAddress: entry.request?.ipAddress ?? null,
-        userAgent: entry.request?.userAgent ?? null,
-        metadata: entry.metadata ?? undefined,
-      },
-    });
+  async log(entry: AuditEntry) {
+    try {
+      return await this.prismaService.auditLog.create({
+        data: {
+          action: entry.action,
+          actorId: entry.actorId ?? null,
+          projectId: entry.projectId ?? null,
+          resourceType: entry.resourceType,
+          resourceId: entry.resourceId ?? null,
+          ipAddress: entry.request?.ipAddress ?? null,
+          userAgent: entry.request?.userAgent ?? null,
+          metadata: entry.metadata ?? undefined,
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Audit log write failed for action "${entry.action}"`,
+        error instanceof Error ? error.stack : undefined,
+      );
+
+      return null;
+    }
   }
 
   listProjectAuditLogs(projectId: string, query: AuditQueryDto) {

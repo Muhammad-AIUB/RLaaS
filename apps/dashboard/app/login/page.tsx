@@ -20,9 +20,7 @@ export default function LoginPage() {
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: formData.get('email'),
           password: formData.get('password'),
@@ -32,7 +30,9 @@ export default function LoginPage() {
       const payload = await response.json();
 
       if (!response.ok) {
-        throw new Error(payload?.message ?? 'Login failed');
+        throw new Error(
+          payload?.message ?? payload?.error?.message ?? 'Login failed',
+        );
       }
 
       router.push('/dashboard');
@@ -45,75 +45,135 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-12">
-      <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-        <section className="rounded-[36px] bg-ink p-10 text-white shadow-panel">
-          <p className="text-xs uppercase tracking-[0.38em] text-moss">RLaaS Platform</p>
-          <h1 className="mt-6 text-5xl font-semibold leading-tight">
+    <main className="grid min-h-screen lg:grid-cols-2">
+      {/* Left brand panel — desktop only */}
+      <section className="relative hidden overflow-hidden bg-slate-900 text-white lg:flex lg:flex-col lg:justify-between lg:p-10">
+        <div
+          className="absolute inset-0 opacity-60"
+          style={{
+            backgroundImage:
+              'radial-gradient(60% 50% at 30% 30%, rgba(99,102,241,0.55) 0%, transparent 70%), radial-gradient(40% 40% at 80% 80%, rgba(16,185,129,0.35) 0%, transparent 70%)',
+          }}
+          aria-hidden
+        />
+        <div className="relative z-10">
+          <div className="flex items-center gap-2.5">
+            <svg viewBox="0 0 24 24" className="h-9 w-9" fill="none">
+              <rect x="2" y="2" width="20" height="20" rx="6" fill="url(#g)" />
+              <path d="M7 12h10M7 8h10M7 16h6" stroke="white" strokeWidth="1.75" strokeLinecap="round" />
+              <defs>
+                <linearGradient id="g" x1="0" y1="0" x2="24" y2="24">
+                  <stop stopColor="#818cf8" />
+                  <stop offset="1" stopColor="#4338ca" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <span className="text-base font-semibold">RLaaS Platform</span>
+          </div>
+        </div>
+        <div className="relative z-10 max-w-lg">
+          <p className="text-xs font-semibold uppercase tracking-widest text-brand-300">
+            Operator console
+          </p>
+          <h1 className="mt-4 text-4xl font-semibold leading-tight tracking-tight">
             Protect the APIs you already have.
           </h1>
-          <p className="mt-6 max-w-xl text-base text-slate-300">
-            Log in to inspect traffic, tune rules, and track how your rate limits perform under pressure.
+          <p className="mt-4 text-base text-slate-300">
+            Inspect traffic, tune rules, and track how your rate limits perform under
+            pressure — all in one console.
           </p>
-          <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            <div className="rounded-3xl bg-white/10 p-4">
-              <p className="text-2xl font-semibold">4</p>
-              <p className="mt-2 text-sm text-slate-300">Algorithms ready</p>
-            </div>
-            <div className="rounded-3xl bg-white/10 p-4">
-              <p className="text-2xl font-semibold">5</p>
-              <p className="mt-2 text-sm text-slate-300">Rule scopes</p>
-            </div>
-            <div className="rounded-3xl bg-white/10 p-4">
-              <p className="text-2xl font-semibold">1</p>
-              <p className="mt-2 text-sm text-slate-300">Gateway to guard</p>
-            </div>
+          <div className="mt-8 grid grid-cols-3 gap-3">
+            {[
+              { value: '4', label: 'Algorithms' },
+              { value: '5', label: 'Rule scopes' },
+              { value: '∞', label: 'Projects' },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur"
+              >
+                <p className="text-2xl font-semibold">{stat.value}</p>
+                <p className="mt-1 text-xs text-slate-400">{stat.label}</p>
+              </div>
+            ))}
           </div>
-        </section>
-        <section className="rounded-[36px] border border-white/80 bg-white/85 p-8 shadow-panel backdrop-blur">
-          <p className="text-xs uppercase tracking-[0.34em] text-pine">Sign In</p>
-          <h2 className="mt-4 text-3xl font-semibold text-ink">Welcome back</h2>
-          <p className="mt-3 text-sm text-slate-600">
-            Use the seeded demo account or your own operator credentials.
+        </div>
+        <div className="relative z-10 text-xs text-slate-400">
+          © {new Date().getFullYear()} RLaaS · All rights reserved
+        </div>
+      </section>
+
+      {/* Right form panel */}
+      <section className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-12">
+        <div className="w-full max-w-md">
+          <div className="mb-8 flex items-center gap-2 lg:hidden">
+            <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none">
+              <rect x="2" y="2" width="20" height="20" rx="6" fill="#4f46e5" />
+              <path d="M7 12h10M7 8h10M7 16h6" stroke="white" strokeWidth="1.75" strokeLinecap="round" />
+            </svg>
+            <span className="text-base font-semibold text-slate-900">RLaaS</span>
+          </div>
+
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+            Welcome back
+          </h2>
+          <p className="mt-1.5 text-sm text-slate-500">
+            Sign in with your operator credentials.
           </p>
+
           <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
-            <label className="block">
-              <span className="mb-2 block text-sm text-slate-700">Email</span>
+            <div>
+              <label htmlFor="email" className="label">
+                Email
+              </label>
               <input
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-pine"
+                id="email"
+                className="field"
                 name="email"
                 type="email"
+                autoComplete="email"
                 defaultValue="demo@rlaas.local"
                 required
               />
-            </label>
-            <label className="block">
-              <span className="mb-2 block text-sm text-slate-700">Password</span>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="password" className="label !mb-0">
+                  Password
+                </label>
+                <a
+                  href="#"
+                  className="text-xs font-medium text-brand-700 hover:text-brand-800"
+                >
+                  Forgot?
+                </a>
+              </div>
               <input
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-pine"
+                id="password"
+                className="field mt-1.5"
                 name="password"
                 type="password"
+                autoComplete="current-password"
                 defaultValue="DemoPass123!"
                 required
               />
-            </label>
+            </div>
+
             {error ? <ErrorState message={error} /> : null}
-            <button
-              className="w-full rounded-full bg-pine px-5 py-3 text-sm font-medium text-white transition hover:bg-ink disabled:opacity-60"
-              disabled={pending}
-              type="submit"
-            >
-              {pending ? 'Signing in...' : 'Sign in'}
+
+            <button type="submit" className="btn-primary w-full" disabled={pending}>
+              {pending ? 'Signing in…' : 'Sign in'}
             </button>
           </form>
-          <p className="mt-6 text-sm text-slate-600">
-            Need an account?{' '}
-            <Link className="font-medium text-pine" href="/register">
-              Create one
+
+          <p className="mt-6 text-sm text-slate-500">
+            New here?{' '}
+            <Link className="font-medium text-brand-700 hover:text-brand-800" href="/register">
+              Create an account
             </Link>
           </p>
-        </section>
-      </div>
+        </div>
+      </section>
     </main>
   );
 }

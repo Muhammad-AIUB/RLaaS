@@ -8,7 +8,8 @@ import { EmptyState } from '@/components/empty-state';
 import { ErrorState } from '@/components/error-state';
 import { LoadingState } from '@/components/loading-state';
 import { MetricCard } from '@/components/metric-card';
-import { Panel } from '@/components/panel';
+import { PageHeader } from '@/components/page-header';
+import { Panel, PanelHeader } from '@/components/panel';
 import { apiFetch } from '@/lib/api-client';
 import {
   AlgorithmPerformanceRecord,
@@ -66,7 +67,9 @@ export default function DashboardOverviewPage() {
         setAlgorithms(algorithmData);
         setLogs(logData);
       } catch (caughtError) {
-        setError(caughtError instanceof Error ? caughtError.message : 'Failed to load dashboard');
+        setError(
+          caughtError instanceof Error ? caughtError.message : 'Failed to load dashboard',
+        );
       } finally {
         setLoading(false);
       }
@@ -76,97 +79,197 @@ export default function DashboardOverviewPage() {
   }, []);
 
   if (loading) {
-    return <LoadingState label="Loading the operator overview..." />;
+    return (
+      <>
+        <PageHeader
+          eyebrow="Overview"
+          title="Operator dashboard"
+          description="Real-time view of how your APIs are being protected."
+        />
+        <LoadingState label="Loading the operator overview…" />
+      </>
+    );
   }
 
   if (error) {
-    return <ErrorState message={error} />;
+    return (
+      <>
+        <PageHeader eyebrow="Overview" title="Operator dashboard" />
+        <ErrorState message={error} />
+      </>
+    );
   }
 
   if (!project || !overview) {
     return (
-      <EmptyState
-        title="No projects yet"
-        description="Create your first protected API project to start generating keys, rules, and analytics."
-        href="/projects"
-        actionLabel="Open projects"
-      />
+      <>
+        <PageHeader eyebrow="Overview" title="Operator dashboard" />
+        <EmptyState
+          title="No projects yet"
+          description="Create your first protected API project to start generating keys, rules, and analytics."
+          href="/projects"
+          actionLabel="Create a project"
+        />
+      </>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total requests" value={overview.totalRequests.toLocaleString()} />
-        <MetricCard label="Allowed requests" value={overview.allowedRequests.toLocaleString()} accent="#235347" />
-        <MetricCard label="Blocked requests" value={overview.blockedRequests.toLocaleString()} accent="#d95d39" />
-        <MetricCard label="Block rate" value={`${overview.blockRate}%`} accent="#9dc08b" />
+    <>
+      <PageHeader
+        eyebrow="Overview"
+        title="Operator dashboard"
+        description={
+          <>
+            Showing data for{' '}
+            <span className="font-medium text-slate-700">{project.name}</span> ·{' '}
+            <span className="badge-neutral !ml-1 !py-0">{project.environment}</span>
+          </>
+        }
+        actions={
+          <Link
+            href={`/projects/${project.id}/analytics`}
+            className="btn-secondary"
+          >
+            Full analytics
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M13 5l7 7-7 7" />
+            </svg>
+          </Link>
+        }
+      />
+
+      {/* Metrics */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Total requests"
+          value={overview.totalRequests.toLocaleString()}
+          tone="brand"
+        />
+        <MetricCard
+          label="Allowed"
+          value={overview.allowedRequests.toLocaleString()}
+          tone="success"
+        />
+        <MetricCard
+          label="Blocked"
+          value={overview.blockedRequests.toLocaleString()}
+          tone="danger"
+        />
+        <MetricCard
+          label="Block rate"
+          value={`${overview.blockRate}%`}
+          tone="warning"
+        />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <Panel>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.32em] text-pine">Algorithm comparison</p>
-              <h2 className="mt-2 text-2xl font-semibold text-ink">Throughput by strategy</h2>
-            </div>
-            <Link className="text-sm font-medium text-pine" href={`/projects/${project.id}/analytics`}>
-              Full analytics
-            </Link>
-          </div>
-          <div className="mt-6">
+
+      {/* Charts */}
+      <div className="mt-6 grid gap-4 lg:grid-cols-5">
+        <Panel className="lg:col-span-3">
+          <PanelHeader
+            eyebrow="Algorithm comparison"
+            title="Throughput by strategy"
+            description="How requests are distributed across active rate-limit algorithms."
+          />
+          <div className="mt-4">
             <AlgorithmBarChart data={algorithms} />
           </div>
         </Panel>
-        <Panel>
-          <p className="text-xs uppercase tracking-[0.32em] text-pine">Request outcomes</p>
-          <h2 className="mt-2 text-2xl font-semibold text-ink">Allowed vs blocked</h2>
-          <RequestsDonut allowed={overview.allowedRequests} blocked={overview.blockedRequests} />
+        <Panel className="lg:col-span-2">
+          <PanelHeader
+            eyebrow="Request outcomes"
+            title="Allowed vs blocked"
+          />
+          <div className="mt-4">
+            <RequestsDonut
+              allowed={overview.allowedRequests}
+              blocked={overview.blockedRequests}
+            />
+          </div>
         </Panel>
       </div>
-      <div className="grid gap-6 xl:grid-cols-3">
+
+      {/* Lists */}
+      <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <Panel>
-          <p className="text-xs uppercase tracking-[0.32em] text-pine">Top offending IPs</p>
-          <div className="mt-4 space-y-3">
-            {topIps.map((item) => (
-              <div key={item.ip} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                <span className="text-sm text-slate-700">{item.ip}</span>
-                <span className="text-sm font-medium text-ink">{item.requests}</span>
-              </div>
-            ))}
-          </div>
+          <PanelHeader eyebrow="Top offenders" title="IP addresses" />
+          <ul className="mt-4 divide-y divide-slate-100">
+            {topIps.length === 0 ? (
+              <li className="py-3 text-sm text-slate-500">No data yet.</li>
+            ) : (
+              topIps.map((item) => (
+                <li
+                  key={item.ip}
+                  className="flex items-center justify-between py-2.5 text-sm"
+                >
+                  <span className="font-mono text-slate-700">{item.ip}</span>
+                  <span className="badge-neutral">{item.requests}</span>
+                </li>
+              ))
+            )}
+          </ul>
         </Panel>
         <Panel>
-          <p className="text-xs uppercase tracking-[0.32em] text-pine">Most used endpoints</p>
-          <div className="mt-4 space-y-3">
-            {topEndpoints.map((item) => (
-              <div key={`${item.method}-${item.endpoint}`} className="rounded-2xl bg-slate-50 px-4 py-3">
-                <p className="text-sm font-medium text-ink">
-                  {item.method} {item.endpoint}
-                </p>
-                <p className="mt-1 text-sm text-slate-600">{item.requests} requests</p>
-              </div>
-            ))}
-          </div>
-        </Panel>
-        <Panel>
-          <p className="text-xs uppercase tracking-[0.32em] text-pine">Recent request logs</p>
-          <div className="mt-4 space-y-3">
-            {logs.slice(0, 5).map((item) => (
-              <div key={item.id} className="rounded-2xl bg-slate-50 px-4 py-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-ink">{item.endpoint}</p>
-                  <span className={item.decision === 'BLOCKED' ? 'text-ember' : 'text-pine'}>
-                    {item.decision}
+          <PanelHeader eyebrow="Most used" title="Endpoints" />
+          <ul className="mt-4 divide-y divide-slate-100">
+            {topEndpoints.length === 0 ? (
+              <li className="py-3 text-sm text-slate-500">No data yet.</li>
+            ) : (
+              topEndpoints.map((item) => (
+                <li
+                  key={`${item.method}-${item.endpoint}`}
+                  className="flex items-center justify-between gap-3 py-2.5 text-sm"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-slate-800">
+                      <span className="badge-info mr-2 !py-0 !text-2xs">
+                        {item.method}
+                      </span>
+                      <span className="font-mono">{item.endpoint}</span>
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-xs text-slate-500">
+                    {item.requests}
                   </span>
-                </div>
-                <p className="mt-1 text-xs text-slate-500">
-                  {item.method} · {item.ipAddress} · {item.algorithm}
-                </p>
-              </div>
-            ))}
-          </div>
+                </li>
+              ))
+            )}
+          </ul>
+        </Panel>
+        <Panel>
+          <PanelHeader eyebrow="Activity" title="Recent requests" />
+          <ul className="mt-4 space-y-2.5">
+            {logs.length === 0 ? (
+              <li className="text-sm text-slate-500">No activity yet.</li>
+            ) : (
+              logs.slice(0, 5).map((item) => (
+                <li
+                  key={item.id}
+                  className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate font-mono text-xs text-slate-800">
+                      {item.endpoint}
+                    </p>
+                    <span
+                      className={
+                        item.decision === 'BLOCKED'
+                          ? 'badge-danger !py-0'
+                          : 'badge-success !py-0'
+                      }
+                    >
+                      {item.decision}
+                    </span>
+                  </div>
+                  <p className="mt-1 truncate text-xs text-slate-500">
+                    {item.method} · {item.ipAddress} · {item.algorithm}
+                  </p>
+                </li>
+              ))
+            )}
+          </ul>
         </Panel>
       </div>
-    </div>
+    </>
   );
 }
