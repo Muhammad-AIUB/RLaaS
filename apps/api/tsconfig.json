@@ -11,6 +11,8 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "target": "ES2023",
+    "allowJs": true,
+    "checkJs": false,
     "sourceMap": true,
     "outDir": "./dist",
     "incremental": true,
@@ -21,5 +23,6 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "types": ["node"]
-  }
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "prisma/seed.js"]
 }
