@@ -158,9 +158,7 @@ export class AnalyticsService {
 
     const logs = await this.prismaService.requestLog.findMany({
       where: this.buildWhere(projectId, query),
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: limit,
       select: {
         id: true,
@@ -182,24 +180,82 @@ export class AnalyticsService {
         responseTimeMs: true,
         metadata: true,
         createdAt: true,
-        apiKey: {
-          select: {
-            id: true,
-            name: true,
-            keyPrefix: true,
-            status: true,
-          },
-        },
-        rule: {
-          select: {
-            id: true,
-            name: true,
-            scope: true,
-            priority: true,
-          },
-        },
       },
     });
+
+    const apiKeyIds = Array.from(
+      new Set(
+        logs
+          .map((log) => log.apiKeyId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const ruleIds = Array.from(
+      new Set(
+        logs
+          .map((log) => log.ruleId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    const [apiKeys, rules] = await Promise.all([
+      apiKeyIds.length > 0
+        ? this.prismaService.apiKey.findMany({
+            where: {
+              id: {
+                in: apiKeyIds,
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+              keyPrefix: true,
+              status: true,
+            },
+          })
+        : Promise.resolve([]),
+      ruleIds.length > 0
+        ? this.prismaService.rateLimitRule.findMany({
+            where: {
+              id: {
+                in: ruleIds,
+              },
+            },
+            select: {
+              id: true,
+              name: true,
+              scope: true,
+              priority: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const apiKeyById = new Map<
+      string,
+      { id: string; name: string; keyPrefix: string; status: ApiKeyStatus }
+    >();
+    for (const apiKey of apiKeys) {
+      apiKeyById.set(apiKey.id, {
+        id: apiKey.id,
+        name: apiKey.name,
+        keyPrefix: apiKey.keyPrefix,
+        status: apiKey.status as ApiKeyStatus,
+      });
+    }
+
+    const ruleById = new Map<
+      string,
+      { id: string; name: string; scope: RuleScope; priority: number }
+    >();
+    for (const rule of rules) {
+      ruleById.set(rule.id, {
+        id: rule.id,
+        name: rule.name,
+        scope: rule.scope as RuleScope,
+        priority: rule.priority,
+      });
+    }
     const queryDurationMs = performance.now() - queryStartedAt;
     const totalDurationMs = performance.now() - startedAt;
 
@@ -214,21 +270,26 @@ export class AnalyticsService {
       ].join(' '),
     );
 
-    return logs.map((log) => ({
-      ...log,
-      apiKey: log.apiKey
-        ? {
-            ...log.apiKey,
-            status: log.apiKey.status as ApiKeyStatus,
-          }
-        : null,
-      rule: log.rule
-        ? {
-            ...log.rule,
-            scope: log.rule.scope as RuleScope,
-          }
-        : null,
-    }));
+    return logs.map((log) => {
+      const apiKey = log.apiKeyId ? apiKeyById.get(log.apiKeyId) ?? null : null;
+      const rule = log.ruleId ? ruleById.get(log.ruleId) ?? null : null;
+
+      return {
+        ...log,
+        apiKey: apiKey
+          ? {
+              ...apiKey,
+              status: apiKey.status,
+            }
+          : null,
+        rule: rule
+          ? {
+              ...rule,
+              scope: rule.scope,
+            }
+          : null,
+      };
+    });
   }
 
   async createSnapshot(

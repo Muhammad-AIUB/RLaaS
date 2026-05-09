@@ -193,6 +193,7 @@ model RequestLog {
   createdAt      DateTime        @default(now()) @map("created_at")
 
   @@index([projectId, createdAt])
+  @@index([projectId, createdAt(sort: Desc), id(sort: Desc)], map: "request_logs_project_recent_idx")
   @@index([apiKeyId, createdAt])
   @@index([decision, createdAt])
   @@index([ipAddress, createdAt])

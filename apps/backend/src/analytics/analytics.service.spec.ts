@@ -6,7 +6,10 @@ import { AnalyticsService } from './analytics.service';
 describe('AnalyticsService', () => {
   const countMock = jest.fn();
   const groupByMock = jest.fn();
-  const findManyMock = jest.fn();
+  const requestLogFindManyMock = jest.fn();
+  const snapshotFindManyMock = jest.fn();
+  const apiKeyFindManyMock = jest.fn();
+  const rateLimitRuleFindManyMock = jest.fn();
   const upsertMock = jest.fn();
   const assertProjectAccessMock = jest.fn();
 
@@ -14,11 +17,17 @@ describe('AnalyticsService', () => {
     requestLog: {
       count: countMock,
       groupBy: groupByMock,
-      findMany: findManyMock,
+      findMany: requestLogFindManyMock,
     },
     analyticsSnapshot: {
       upsert: upsertMock,
-      findMany: findManyMock,
+      findMany: snapshotFindManyMock,
+    },
+    apiKey: {
+      findMany: apiKeyFindManyMock,
+    },
+    rateLimitRule: {
+      findMany: rateLimitRuleFindManyMock,
     },
   } as unknown as PrismaService;
 
@@ -31,7 +40,10 @@ describe('AnalyticsService', () => {
   beforeEach(() => {
     countMock.mockReset();
     groupByMock.mockReset();
-    findManyMock.mockReset();
+    requestLogFindManyMock.mockReset();
+    snapshotFindManyMock.mockReset();
+    apiKeyFindManyMock.mockReset();
+    rateLimitRuleFindManyMock.mockReset();
     upsertMock.mockReset();
     assertProjectAccessMock.mockReset();
     assertProjectAccessMock.mockResolvedValue({});
@@ -108,6 +120,143 @@ describe('AnalyticsService', () => {
         periodStart: from,
         periodEnd: to,
       }),
+    });
+  });
+
+  it('fetches recent logs with a top-level select and hydrates the response shape', async () => {
+    const createdAt = new Date('2026-05-08T12:00:00.000Z');
+
+    requestLogFindManyMock.mockResolvedValue([
+      {
+        id: 'log-1',
+        projectId: 'project-1',
+        apiKeyId: 'api-key-1',
+        ruleId: 'rule-1',
+        requestId: 'request-1',
+        idempotencyKey: 'idem-1',
+        ipAddress: '203.0.113.10',
+        endpoint: '/v1/messages',
+        method: 'POST',
+        userTier: 'PRO',
+        decision: 'ALLOWED',
+        reason: null,
+        algorithm: 'TOKEN_BUCKET',
+        limit: 100,
+        remaining: 99,
+        retryAfter: 0,
+        responseTimeMs: 12,
+        metadata: { region: 'iad' },
+        createdAt,
+      },
+    ]);
+    apiKeyFindManyMock.mockResolvedValue([
+      {
+        id: 'api-key-1',
+        name: 'Production',
+        keyPrefix: 'rlaas_live',
+        status: 'ACTIVE',
+      },
+    ]);
+    rateLimitRuleFindManyMock.mockResolvedValue([
+      {
+        id: 'rule-1',
+        name: 'Default',
+        scope: 'GLOBAL',
+        priority: 10,
+      },
+    ]);
+
+    await expect(
+      service.getRecentLogs('user-1', 'project-1', { limit: 8 }),
+    ).resolves.toEqual([
+      {
+        id: 'log-1',
+        projectId: 'project-1',
+        apiKeyId: 'api-key-1',
+        ruleId: 'rule-1',
+        requestId: 'request-1',
+        idempotencyKey: 'idem-1',
+        ipAddress: '203.0.113.10',
+        endpoint: '/v1/messages',
+        method: 'POST',
+        userTier: 'PRO',
+        decision: 'ALLOWED',
+        reason: null,
+        algorithm: 'TOKEN_BUCKET',
+        limit: 100,
+        remaining: 99,
+        retryAfter: 0,
+        responseTimeMs: 12,
+        metadata: { region: 'iad' },
+        createdAt,
+        apiKey: {
+          id: 'api-key-1',
+          name: 'Production',
+          keyPrefix: 'rlaas_live',
+          status: 'ACTIVE',
+        },
+        rule: {
+          id: 'rule-1',
+          name: 'Default',
+          scope: 'GLOBAL',
+          priority: 10,
+        },
+      },
+    ]);
+
+    expect(requestLogFindManyMock).toHaveBeenCalledWith({
+      where: {
+        projectId: 'project-1',
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: 8,
+      select: {
+        id: true,
+        projectId: true,
+        apiKeyId: true,
+        ruleId: true,
+        requestId: true,
+        idempotencyKey: true,
+        ipAddress: true,
+        endpoint: true,
+        method: true,
+        userTier: true,
+        decision: true,
+        reason: true,
+        algorithm: true,
+        limit: true,
+        remaining: true,
+        retryAfter: true,
+        responseTimeMs: true,
+        metadata: true,
+        createdAt: true,
+      },
+    });
+    expect(apiKeyFindManyMock).toHaveBeenCalledWith({
+      where: {
+        id: {
+          in: ['api-key-1'],
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        keyPrefix: true,
+        status: true,
+      },
+    });
+    expect(rateLimitRuleFindManyMock).toHaveBeenCalledWith({
+      where: {
+        id: {
+          in: ['rule-1'],
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        scope: true,
+        priority: true,
+      },
     });
   });
 });
