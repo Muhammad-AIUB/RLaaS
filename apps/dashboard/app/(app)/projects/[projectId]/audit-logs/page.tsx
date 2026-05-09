@@ -1,67 +1,48 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ErrorState } from '@/components/error-state';
-import { LoadingState } from '@/components/loading-state';
-import { PageHeader } from '@/components/page-header';
-import { Panel } from '@/components/panel';
-import { ProjectTabs } from '@/components/project-tabs';
-import { apiFetch } from '@/lib/api-client';
-import { AuditLogRecord } from '@/lib/types';
+import { ErrorState, LoadingState } from '@/components/feedback';
+import { ClockIcon } from '@/components/icons';
+import { PageHeader, ProjectTabs } from '@/components/layout';
+import { Panel } from '@/components/ui';
+import { auditLogsApi } from '@/lib/api';
+import { useAsyncResource } from '@/lib/hooks';
+import type { AuditLogRecord } from '@/lib/types';
 
 export default function AuditLogsPage() {
   const params = useParams<{ projectId: string }>();
-  const [entries, setEntries] = useState<AuditLogRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const projectId = params.projectId as string;
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const data = await apiFetch<AuditLogRecord[]>(
-          `/api/proxy/projects/${params.projectId}/audit-logs`,
-        );
-        setEntries(data);
-        setError('');
-      } catch (caughtError) {
-        setError(
-          caughtError instanceof Error
-            ? caughtError.message
-            : 'Failed to load audit logs',
-        );
-      } finally {
-        setLoading(false);
-      }
-    }
+  const entries = useAsyncResource<AuditLogRecord[]>(
+    () => auditLogsApi.list(projectId),
+    [projectId],
+  );
 
-    void load();
-  }, [params.projectId]);
+  const list = entries.data ?? [];
 
   return (
     <>
       <PageHeader
         crumbs={[
           { href: '/projects', label: 'Projects' },
-          { href: `/projects/${params.projectId}`, label: 'Project' },
+          { href: `/projects/${projectId}`, label: 'Project' },
           { label: 'Audit' },
         ]}
         eyebrow="History"
         title="Audit logs"
         description="Follow changes to auth, membership, API keys, rules, and webhook configuration."
       />
-      <ProjectTabs projectId={params.projectId as string} />
+      <ProjectTabs projectId={projectId} />
 
-      {error ? (
+      {entries.error ? (
         <div className="mb-6">
-          <ErrorState message={error} />
+          <ErrorState message={entries.error} />
         </div>
       ) : null}
 
-      {loading ? (
+      {entries.loading ? (
         <LoadingState label="Loading audit logs…" />
-      ) : entries.length === 0 ? (
+      ) : list.length === 0 ? (
         <Panel>
           <p className="py-6 text-center text-sm text-slate-500">
             No audit entries yet.
@@ -70,13 +51,10 @@ export default function AuditLogsPage() {
       ) : (
         <Panel padding={false}>
           <ol className="relative divide-y divide-slate-100">
-            {entries.map((entry) => (
+            {list.map((entry) => (
               <li key={entry.id} className="flex gap-4 px-5 py-4 sm:px-6">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="M12 7v5l3 2" />
-                  </svg>
+                  <ClockIcon className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">

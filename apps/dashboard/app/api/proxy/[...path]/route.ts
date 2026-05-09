@@ -1,32 +1,36 @@
-import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
-import { AUTH_COOKIE, getApiBaseUrl } from '@/lib/auth/session';
+import { buildUpstreamUrl, readSessionToken } from '@/lib/auth/server';
 
-async function forward(
-  request: NextRequest,
-  context: { params: Promise<{ path: string[] }> },
-) {
-  const token = (await cookies()).get(AUTH_COOKIE)?.value;
+interface ProxyContext {
+  params: Promise<{ path: string[] }>;
+}
+
+const METHODS_WITHOUT_BODY = new Set(['GET', 'DELETE']);
+
+async function forward(request: NextRequest, context: ProxyContext) {
+  const token = await readSessionToken();
 
   if (!token) {
     return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
   }
 
   const { path } = await context.params;
-  const target = new URL(`${getApiBaseUrl()}/api/v1/${path.join('/')}`);
   const incomingUrl = new URL(request.url);
-  target.search = incomingUrl.search;
+  const target = buildUpstreamUrl(
+    `/api/v1/${path.join('/')}`,
+    incomingUrl.search,
+  );
 
-  const body =
-    request.method === 'GET' || request.method === 'DELETE'
-      ? undefined
-      : await request.text();
+  const body = METHODS_WITHOUT_BODY.has(request.method)
+    ? undefined
+    : await request.text();
 
   const response = await fetch(target, {
     method: request.method,
     headers: {
       Authorization: `Bearer ${token}`,
-      'Content-Type': request.headers.get('content-type') ?? 'application/json',
+      'Content-Type':
+        request.headers.get('content-type') ?? 'application/json',
     },
     body,
     cache: 'no-store',
@@ -37,35 +41,24 @@ async function forward(
   return new NextResponse(text, {
     status: response.status,
     headers: {
-      'Content-Type': response.headers.get('content-type') ?? 'application/json',
+      'Content-Type':
+        response.headers.get('content-type') ?? 'application/json',
     },
   });
 }
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ path: string[] }> },
-) {
+export async function GET(request: NextRequest, context: ProxyContext) {
   return forward(request, context);
 }
 
-export async function POST(
-  request: NextRequest,
-  context: { params: Promise<{ path: string[] }> },
-) {
+export async function POST(request: NextRequest, context: ProxyContext) {
   return forward(request, context);
 }
 
-export async function PATCH(
-  request: NextRequest,
-  context: { params: Promise<{ path: string[] }> },
-) {
+export async function PATCH(request: NextRequest, context: ProxyContext) {
   return forward(request, context);
 }
 
-export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ path: string[] }> },
-) {
+export async function DELETE(request: NextRequest, context: ProxyContext) {
   return forward(request, context);
 }

@@ -3,7 +3,14 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
-import { ErrorState } from '@/components/error-state';
+import { ErrorState } from '@/components/feedback';
+import { LogoMark } from '@/components/icons';
+
+const DEMO_STATS = [
+  { value: '4', label: 'Algorithms' },
+  { value: '5', label: 'Rule scopes' },
+  { value: '∞', label: 'Projects' },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,7 +45,9 @@ export default function LoginPage() {
       router.push('/dashboard');
       router.refresh();
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : 'Login failed');
+      setError(
+        caughtError instanceof Error ? caughtError.message : 'Login failed',
+      );
     } finally {
       setPending(false);
     }
@@ -58,16 +67,7 @@ export default function LoginPage() {
         />
         <div className="relative z-10">
           <div className="flex items-center gap-2.5">
-            <svg viewBox="0 0 24 24" className="h-9 w-9" fill="none">
-              <rect x="2" y="2" width="20" height="20" rx="6" fill="url(#g)" />
-              <path d="M7 12h10M7 8h10M7 16h6" stroke="white" strokeWidth="1.75" strokeLinecap="round" />
-              <defs>
-                <linearGradient id="g" x1="0" y1="0" x2="24" y2="24">
-                  <stop stopColor="#818cf8" />
-                  <stop offset="1" stopColor="#4338ca" />
-                </linearGradient>
-              </defs>
-            </svg>
+            <LogoMark className="h-9 w-9" />
             <span className="text-base font-semibold">RLaaS Platform</span>
           </div>
         </div>
@@ -79,15 +79,11 @@ export default function LoginPage() {
             Protect the APIs you already have.
           </h1>
           <p className="mt-4 text-base text-slate-300">
-            Inspect traffic, tune rules, and track how your rate limits perform under
-            pressure — all in one console.
+            Inspect traffic, tune rules, and track how your rate limits perform
+            under pressure — all in one console.
           </p>
           <div className="mt-8 grid grid-cols-3 gap-3">
-            {[
-              { value: '4', label: 'Algorithms' },
-              { value: '5', label: 'Rule scopes' },
-              { value: '∞', label: 'Projects' },
-            ].map((stat) => (
+            {DEMO_STATS.map((stat) => (
               <div
                 key={stat.label}
                 className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur"
@@ -107,10 +103,7 @@ export default function LoginPage() {
       <section className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-12">
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-2 lg:hidden">
-            <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none">
-              <rect x="2" y="2" width="20" height="20" rx="6" fill="#4f46e5" />
-              <path d="M7 12h10M7 8h10M7 16h6" stroke="white" strokeWidth="1.75" strokeLinecap="round" />
-            </svg>
+            <LogoMark className="h-8 w-8" />
             <span className="text-base font-semibold text-slate-900">RLaaS</span>
           </div>
 
@@ -168,9 +161,24 @@ export default function LoginPage() {
 
           <p className="mt-6 text-sm text-slate-500">
             New here?{' '}
-            <Link className="font-medium text-brand-700 hover:text-brand-800" href="/register">
+            <Link
+              className="font-medium text-brand-700 hover:text-brand-800"
+              href="/register"
+            >
               Create an account
             </Link>
+          </p>
+
+          <p className="mt-6 text-xs text-slate-500">
+            Developed by{' '}
+            <a
+              href="https://www.mjubayer.dev/"
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-brand-700 hover:text-brand-800"
+            >
+              Muhammad Jubayer
+            </a>
           </p>
         </div>
       </section>

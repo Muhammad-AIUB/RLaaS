@@ -1,77 +1,69 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ErrorState } from '@/components/error-state';
-import { LoadingState } from '@/components/loading-state';
-import { PageHeader } from '@/components/page-header';
-import { Panel, PanelHeader } from '@/components/panel';
-import { ProjectTabs } from '@/components/project-tabs';
-import { apiFetch } from '@/lib/api-client';
-import { RuleRecord } from '@/lib/types';
+import { ErrorState, LoadingState } from '@/components/feedback';
+import { PageHeader, ProjectTabs } from '@/components/layout';
+import { Panel, PanelHeader } from '@/components/ui';
+import { rulesApi } from '@/lib/api';
+import { useAsyncResource } from '@/lib/hooks';
+import type { CreateRuleInput, RuleRecord } from '@/lib/types';
+
+function readFormString(form: FormData, key: string): string | undefined {
+  const value = form.get(key);
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function readFormNumber(form: FormData, key: string): number | undefined {
+  const raw = form.get(key);
+  if (raw === null || raw === '') return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
 
 export default function RulesPage() {
   const params = useParams<{ projectId: string }>();
-  const [rules, setRules] = useState<RuleRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const projectId = params.projectId as string;
+
+  const rules = useAsyncResource<RuleRecord[]>(
+    () => rulesApi.list(projectId),
+    [projectId],
+  );
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
-
-  async function load() {
-    try {
-      setLoading(true);
-      const data = await apiFetch<RuleRecord[]>(
-        `/api/proxy/projects/${params.projectId}/rules`,
-      );
-      setRules(data);
-      setError('');
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to load rules',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, [params.projectId]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    setError('');
+    rules.setError('');
+
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const input: CreateRuleInput = {
+      name: String(formData.get('name') ?? ''),
+      description: readFormString(formData, 'description'),
+      priority: readFormNumber(formData, 'priority') ?? 100,
+      scope: String(formData.get('scope') ?? 'GLOBAL'),
+      targetValue: readFormString(formData, 'targetValue'),
+      endpointPattern: readFormString(formData, 'endpointPattern'),
+      method: readFormString(formData, 'method'),
+      userTier: readFormString(formData, 'userTier'),
+      algorithm: String(formData.get('algorithm') ?? 'FIXED_WINDOW'),
+      limit: readFormNumber(formData, 'limit') ?? 100,
+      windowSeconds: readFormNumber(formData, 'windowSeconds') ?? 60,
+      burstCapacity: readFormNumber(formData, 'burstCapacity'),
+    };
 
     try {
-      await apiFetch<RuleRecord>(`/api/proxy/projects/${params.projectId}/rules`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: formData.get('name'),
-          description: formData.get('description'),
-          priority: Number(formData.get('priority')),
-          scope: formData.get('scope'),
-          targetValue: formData.get('targetValue') || undefined,
-          endpointPattern: formData.get('endpointPattern') || undefined,
-          method: formData.get('method') || undefined,
-          userTier: formData.get('userTier') || undefined,
-          algorithm: formData.get('algorithm'),
-          limit: Number(formData.get('limit')),
-          windowSeconds: Number(formData.get('windowSeconds')),
-          burstCapacity: formData.get('burstCapacity')
-            ? Number(formData.get('burstCapacity'))
-            : undefined,
-        }),
-      });
+      await rulesApi.create(projectId, input);
       form.reset();
       setShowForm(false);
-      await load();
+      await rules.reload();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to create rule',
+      rules.setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to create rule',
       );
     } finally {
       setPending(false);
@@ -80,24 +72,25 @@ export default function RulesPage() {
 
   async function remove(ruleId: string) {
     try {
-      await apiFetch<{ success: boolean }>(
-        `/api/proxy/projects/${params.projectId}/rules/${ruleId}`,
-        { method: 'DELETE' },
-      );
-      await load();
+      await rulesApi.remove(projectId, ruleId);
+      await rules.reload();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to delete rule',
+      rules.setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to delete rule',
       );
     }
   }
+
+  const list = rules.data ?? [];
 
   return (
     <>
       <PageHeader
         crumbs={[
           { href: '/projects', label: 'Projects' },
-          { href: `/projects/${params.projectId}`, label: 'Project' },
+          { href: `/projects/${projectId}`, label: 'Project' },
           { label: 'Rules' },
         ]}
         eyebrow="Policy"
@@ -113,7 +106,7 @@ export default function RulesPage() {
           </button>
         }
       />
-      <ProjectTabs projectId={params.projectId as string} />
+      <ProjectTabs projectId={projectId} />
 
       {showForm ? (
         <Panel className="mb-6">
@@ -124,11 +117,22 @@ export default function RulesPage() {
           >
             <div className="sm:col-span-2">
               <label className="label">Name</label>
-              <input className="field" name="name" required placeholder="Throttle public endpoints" />
+              <input
+                className="field"
+                name="name"
+                required
+                placeholder="Throttle public endpoints"
+              />
             </div>
             <div>
               <label className="label">Priority</label>
-              <input className="field" name="priority" type="number" defaultValue="100" required />
+              <input
+                className="field"
+                name="priority"
+                type="number"
+                defaultValue="100"
+                required
+              />
             </div>
             <div>
               <label className="label">Scope</label>
@@ -142,20 +146,34 @@ export default function RulesPage() {
             </div>
             <div>
               <label className="label">Algorithm</label>
-              <select className="field" name="algorithm" defaultValue="FIXED_WINDOW">
+              <select
+                className="field"
+                name="algorithm"
+                defaultValue="FIXED_WINDOW"
+              >
                 <option value="FIXED_WINDOW">Fixed Window</option>
                 <option value="SLIDING_WINDOW_LOG">Sliding Window Log</option>
-                <option value="SLIDING_WINDOW_COUNTER">Sliding Window Counter</option>
+                <option value="SLIDING_WINDOW_COUNTER">
+                  Sliding Window Counter
+                </option>
                 <option value="TOKEN_BUCKET">Token Bucket</option>
               </select>
             </div>
             <div>
               <label className="label">Target value</label>
-              <input className="field" name="targetValue" placeholder="e.g. 1.2.3.4" />
+              <input
+                className="field"
+                name="targetValue"
+                placeholder="e.g. 1.2.3.4"
+              />
             </div>
             <div>
               <label className="label">Endpoint pattern</label>
-              <input className="field" name="endpointPattern" placeholder="/api/products*" />
+              <input
+                className="field"
+                name="endpointPattern"
+                placeholder="/api/products*"
+              />
             </div>
             <div>
               <label className="label">Method</label>
@@ -180,25 +198,50 @@ export default function RulesPage() {
             </div>
             <div>
               <label className="label">Limit</label>
-              <input className="field" name="limit" type="number" defaultValue="100" required />
+              <input
+                className="field"
+                name="limit"
+                type="number"
+                defaultValue="100"
+                required
+              />
             </div>
             <div>
               <label className="label">Window (s)</label>
-              <input className="field" name="windowSeconds" type="number" defaultValue="60" required />
+              <input
+                className="field"
+                name="windowSeconds"
+                type="number"
+                defaultValue="60"
+                required
+              />
             </div>
             <div>
               <label className="label">Burst capacity</label>
-              <input className="field" name="burstCapacity" type="number" placeholder="optional" />
+              <input
+                className="field"
+                name="burstCapacity"
+                type="number"
+                placeholder="optional"
+              />
             </div>
             <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4">
               <label className="label">Description</label>
-              <input className="field" name="description" placeholder="Optional description" />
+              <input
+                className="field"
+                name="description"
+                placeholder="Optional description"
+              />
             </div>
             <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3 xl:col-span-4">
               <button type="submit" className="btn-primary" disabled={pending}>
                 {pending ? 'Creating…' : 'Create rule'}
               </button>
-              <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowForm(false)}
+              >
                 Cancel
               </button>
             </div>
@@ -206,15 +249,15 @@ export default function RulesPage() {
         </Panel>
       ) : null}
 
-      {error ? (
+      {rules.error ? (
         <div className="mb-6">
-          <ErrorState message={error} />
+          <ErrorState message={rules.error} />
         </div>
       ) : null}
 
-      {loading ? (
+      {rules.loading ? (
         <LoadingState label="Loading rules…" />
-      ) : rules.length === 0 ? (
+      ) : list.length === 0 ? (
         <Panel>
           <p className="py-6 text-center text-sm text-slate-500">
             No rules yet. Create your first one above.
@@ -222,7 +265,7 @@ export default function RulesPage() {
         </Panel>
       ) : (
         <div className="grid gap-4">
-          {rules.map((rule) => (
+          {list.map((rule) => (
             <Panel key={rule.id}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -239,15 +282,21 @@ export default function RulesPage() {
                   <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
                     <div>
                       <dt className="text-slate-500">Priority</dt>
-                      <dd className="font-medium text-slate-800">{rule.priority}</dd>
+                      <dd className="font-medium text-slate-800">
+                        {rule.priority}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-slate-500">Limit</dt>
-                      <dd className="font-medium text-slate-800">{rule.limit}</dd>
+                      <dd className="font-medium text-slate-800">
+                        {rule.limit}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-slate-500">Window</dt>
-                      <dd className="font-medium text-slate-800">{rule.windowSeconds}s</dd>
+                      <dd className="font-medium text-slate-800">
+                        {rule.windowSeconds}s
+                      </dd>
                     </div>
                   </dl>
                 </div>

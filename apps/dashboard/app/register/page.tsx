@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useState } from 'react';
-import { ErrorState } from '@/components/error-state';
+import { ErrorState } from '@/components/feedback';
+import { LogoMark } from '@/components/icons';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -37,7 +38,9 @@ export default function RegisterPage() {
       router.refresh();
     } catch (caughtError) {
       setError(
-        caughtError instanceof Error ? caughtError.message : 'Registration failed',
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Registration failed',
       );
     } finally {
       setPending(false);
@@ -48,10 +51,7 @@ export default function RegisterPage() {
     <main className="flex min-h-screen items-center justify-center bg-canvas px-4 py-10 sm:px-6">
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center justify-center gap-2">
-          <svg viewBox="0 0 24 24" className="h-8 w-8" fill="none">
-            <rect x="2" y="2" width="20" height="20" rx="6" fill="#4f46e5" />
-            <path d="M7 12h10M7 8h10M7 16h6" stroke="white" strokeWidth="1.75" strokeLinecap="round" />
-          </svg>
+          <LogoMark className="h-8 w-8" />
           <span className="text-base font-semibold text-slate-900">RLaaS</span>
         </div>
 
@@ -117,7 +117,10 @@ export default function RegisterPage() {
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Already have an account?{' '}
-          <Link className="font-medium text-brand-700 hover:text-brand-800" href="/login">
+          <Link
+            className="font-medium text-brand-700 hover:text-brand-800"
+            href="/login"
+          >
             Sign in
           </Link>
         </p>

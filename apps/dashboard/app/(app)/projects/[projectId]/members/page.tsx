@@ -1,16 +1,18 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ErrorState } from '@/components/error-state';
-import { LoadingState } from '@/components/loading-state';
-import { PageHeader } from '@/components/page-header';
-import { Panel, PanelHeader } from '@/components/panel';
-import { ProjectTabs } from '@/components/project-tabs';
-import { apiFetch } from '@/lib/api-client';
-import { ProjectMemberRecord } from '@/lib/types';
+import { ErrorState, LoadingState } from '@/components/feedback';
+import { PageHeader, ProjectTabs } from '@/components/layout';
+import { Panel, PanelHeader } from '@/components/ui';
+import { membersApi } from '@/lib/api';
+import { useAsyncResource } from '@/lib/hooks';
+import type {
+  InviteMemberInput,
+  ProjectMemberRecord,
+} from '@/lib/types';
 
-function initials(name: string) {
+function initials(name: string): string {
   return name
     .split(' ')
     .filter(Boolean)
@@ -21,74 +23,56 @@ function initials(name: string) {
 
 export default function ProjectMembersPage() {
   const params = useParams<{ projectId: string }>();
-  const [members, setMembers] = useState<ProjectMemberRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const projectId = params.projectId as string;
+
+  const members = useAsyncResource<ProjectMemberRecord[]>(
+    () => membersApi.list(projectId),
+    [projectId],
+  );
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
-
-  async function loadMembers() {
-    try {
-      setLoading(true);
-      const data = await apiFetch<ProjectMemberRecord[]>(
-        `/api/proxy/projects/${params.projectId}/members`,
-      );
-      setMembers(data);
-      setError('');
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to load members',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadMembers();
-  }, [params.projectId]);
 
   async function handleInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    setError('');
+    members.setError('');
+
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const input: InviteMemberInput = {
+      email: String(formData.get('email') ?? ''),
+      role: String(formData.get('role') ?? 'VIEWER'),
+    };
 
     try {
-      await apiFetch<ProjectMemberRecord>(
-        `/api/proxy/projects/${params.projectId}/members`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            email: formData.get('email'),
-            role: formData.get('role'),
-          }),
-        },
-      );
+      await membersApi.invite(projectId, input);
       form.reset();
-      await loadMembers();
+      await members.reload();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to add member',
+      members.setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to add member',
       );
     } finally {
       setPending(false);
     }
   }
 
+  const list = members.data ?? [];
+
   return (
     <>
       <PageHeader
         crumbs={[
           { href: '/projects', label: 'Projects' },
-          { href: `/projects/${params.projectId}`, label: 'Project' },
+          { href: `/projects/${projectId}`, label: 'Project' },
           { label: 'Members' },
         ]}
         eyebrow="Access"
         title="Team members"
         description="Manage tenant access with explicit roles."
       />
-      <ProjectTabs projectId={params.projectId as string} />
+      <ProjectTabs projectId={projectId} />
 
       <Panel className="mb-6">
         <PanelHeader eyebrow="Invite" title="Add a teammate" />
@@ -97,8 +81,11 @@ export default function ProjectMembersPage() {
           onSubmit={handleInvite}
         >
           <div className="sm:col-span-2">
-            <label className="label">Email</label>
+            <label className="label" htmlFor="member-email">
+              Email
+            </label>
             <input
+              id="member-email"
               className="field"
               name="email"
               type="email"
@@ -107,8 +94,15 @@ export default function ProjectMembersPage() {
             />
           </div>
           <div>
-            <label className="label">Role</label>
-            <select className="field" name="role" defaultValue="VIEWER">
+            <label className="label" htmlFor="member-role">
+              Role
+            </label>
+            <select
+              id="member-role"
+              className="field"
+              name="role"
+              defaultValue="VIEWER"
+            >
               <option value="OWNER">Owner</option>
               <option value="ADMIN">Admin</option>
               <option value="VIEWER">Viewer</option>
@@ -122,15 +116,15 @@ export default function ProjectMembersPage() {
         </form>
       </Panel>
 
-      {error ? (
+      {members.error ? (
         <div className="mb-6">
-          <ErrorState message={error} />
+          <ErrorState message={members.error} />
         </div>
       ) : null}
 
-      {loading ? (
+      {members.loading ? (
         <LoadingState label="Loading members…" />
-      ) : members.length === 0 ? (
+      ) : list.length === 0 ? (
         <Panel>
           <p className="py-6 text-center text-sm text-slate-500">
             No members yet.
@@ -139,7 +133,7 @@ export default function ProjectMembersPage() {
       ) : (
         <Panel padding={false}>
           <ul className="divide-y divide-slate-100">
-            {members.map((member) => (
+            {list.map((member) => (
               <li
                 key={member.id}
                 className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6"

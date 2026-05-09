@@ -1,98 +1,73 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { FormEvent, useEffect, useState } from 'react';
-import { AlgorithmBarChart } from '@/components/charts/algorithm-bar-chart';
-import { ErrorState } from '@/components/error-state';
-import { LoadingState } from '@/components/loading-state';
-import { MetricCard } from '@/components/metric-card';
-import { PageHeader } from '@/components/page-header';
-import { Panel, PanelHeader } from '@/components/panel';
-import { ProjectTabs } from '@/components/project-tabs';
-import { apiFetch } from '@/lib/api-client';
+import { FormEvent, useState } from 'react';
+import { AlgorithmBarChart } from '@/components/charts';
 import {
+  ErrorState,
+  LoadingState,
+} from '@/components/feedback';
+import { PageHeader, ProjectTabs } from '@/components/layout';
+import { MetricCard, Panel, PanelHeader } from '@/components/ui';
+import { analyticsApi } from '@/lib/api';
+import { useAsyncResource } from '@/lib/hooks';
+import type {
   AlgorithmPerformanceRecord,
   AnalyticsOverview,
+  CreateSnapshotInput,
   RequestLogRecord,
   SnapshotRecord,
   TopEndpointRecord,
   TopIpRecord,
 } from '@/lib/types';
 
+interface AnalyticsPayload {
+  overview: AnalyticsOverview;
+  ips: TopIpRecord[];
+  endpoints: TopEndpointRecord[];
+  algorithms: AlgorithmPerformanceRecord[];
+  logs: RequestLogRecord[];
+  snapshots: SnapshotRecord[];
+}
+
+async function loadAnalytics(projectId: string): Promise<AnalyticsPayload> {
+  const [overview, ips, endpoints, algorithms, logs, snapshots] =
+    await Promise.all([
+      analyticsApi.overview(projectId),
+      analyticsApi.topIps(projectId, 10),
+      analyticsApi.topEndpoints(projectId, 10),
+      analyticsApi.algorithms(projectId),
+      analyticsApi.logs(projectId, 15),
+      analyticsApi.snapshots(projectId, 10),
+    ]);
+  return { overview, ips, endpoints, algorithms, logs, snapshots };
+}
+
 export default function ProjectAnalyticsPage() {
   const params = useParams<{ projectId: string }>();
-  const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
-  const [ips, setIps] = useState<TopIpRecord[]>([]);
-  const [endpoints, setEndpoints] = useState<TopEndpointRecord[]>([]);
-  const [algorithms, setAlgorithms] = useState<AlgorithmPerformanceRecord[]>([]);
-  const [logs, setLogs] = useState<RequestLogRecord[]>([]);
-  const [snapshots, setSnapshots] = useState<SnapshotRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const projectId = params.projectId as string;
+
+  const analytics = useAsyncResource<AnalyticsPayload>(
+    () => loadAnalytics(projectId),
+    [projectId],
+  );
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
-
-  async function load() {
-    try {
-      setLoading(true);
-      const [overviewData, ipData, endpointData, algorithmData, logData, snapshotData] =
-        await Promise.all([
-          apiFetch<AnalyticsOverview>(
-            `/api/proxy/projects/${params.projectId}/analytics/overview`,
-          ),
-          apiFetch<TopIpRecord[]>(
-            `/api/proxy/projects/${params.projectId}/analytics/top-ips?limit=10`,
-          ),
-          apiFetch<TopEndpointRecord[]>(
-            `/api/proxy/projects/${params.projectId}/analytics/top-endpoints?limit=10`,
-          ),
-          apiFetch<AlgorithmPerformanceRecord[]>(
-            `/api/proxy/projects/${params.projectId}/analytics/algorithms`,
-          ),
-          apiFetch<RequestLogRecord[]>(
-            `/api/proxy/projects/${params.projectId}/analytics/logs?limit=15`,
-          ),
-          apiFetch<SnapshotRecord[]>(
-            `/api/proxy/projects/${params.projectId}/analytics/snapshots?limit=10`,
-          ),
-        ]);
-
-      setOverview(overviewData);
-      setIps(ipData);
-      setEndpoints(endpointData);
-      setAlgorithms(algorithmData);
-      setLogs(logData);
-      setSnapshots(snapshotData);
-      setError('');
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to load analytics',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, [params.projectId]);
 
   async function generateSnapshot(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    setError('');
+    analytics.setError('');
+
     const formData = new FormData(event.currentTarget);
+    const input: CreateSnapshotInput = {
+      window: String(formData.get('window') ?? 'DAILY'),
+    };
 
     try {
-      await apiFetch<SnapshotRecord>(
-        `/api/proxy/projects/${params.projectId}/analytics/snapshots`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ window: formData.get('window') }),
-        },
-      );
-      await load();
+      await analyticsApi.createSnapshot(projectId, input);
+      await analytics.reload();
     } catch (caughtError) {
-      setError(
+      analytics.setError(
         caughtError instanceof Error
           ? caughtError.message
           : 'Failed to generate snapshot',
@@ -102,43 +77,46 @@ export default function ProjectAnalyticsPage() {
     }
   }
 
-  if (loading) {
+  if (analytics.loading) {
     return (
       <>
         <PageHeader eyebrow="Insights" title="Analytics" />
-        <ProjectTabs projectId={params.projectId as string} />
+        <ProjectTabs projectId={projectId} />
         <LoadingState label="Loading analytics…" />
       </>
     );
   }
 
-  if (error) {
+  if (analytics.error) {
     return (
       <>
         <PageHeader eyebrow="Insights" title="Analytics" />
-        <ProjectTabs projectId={params.projectId as string} />
-        <ErrorState message={error} />
+        <ProjectTabs projectId={projectId} />
+        <ErrorState message={analytics.error} />
       </>
     );
   }
 
-  if (!overview) {
+  if (!analytics.data) {
     return <ErrorState message="Analytics data is unavailable." />;
   }
+
+  const { overview, ips, endpoints, algorithms, logs, snapshots } =
+    analytics.data;
 
   return (
     <>
       <PageHeader
         crumbs={[
           { href: '/projects', label: 'Projects' },
-          { href: `/projects/${params.projectId}`, label: 'Project' },
+          { href: `/projects/${projectId}`, label: 'Project' },
           { label: 'Analytics' },
         ]}
         eyebrow="Insights"
         title="Analytics"
         description="Inspect trends, top offenders, and algorithm performance."
       />
-      <ProjectTabs projectId={params.projectId as string} />
+      <ProjectTabs projectId={projectId} />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -165,10 +143,7 @@ export default function ProjectAnalyticsPage() {
 
       <div className="mt-6 grid gap-4 lg:grid-cols-5">
         <Panel className="lg:col-span-3">
-          <PanelHeader
-            eyebrow="Performance"
-            title="Algorithm comparison"
-          />
+          <PanelHeader eyebrow="Performance" title="Algorithm comparison" />
           <div className="mt-4">
             <AlgorithmBarChart data={algorithms} />
           </div>
@@ -183,20 +158,23 @@ export default function ProjectAnalyticsPage() {
             className="mt-5 flex flex-wrap items-end gap-3"
             onSubmit={generateSnapshot}
           >
-            <div className="flex-1 min-w-[160px]">
-              <label className="label">Window</label>
-              <select className="field" name="window" defaultValue="DAILY">
+            <div className="min-w-[160px] flex-1">
+              <label className="label" htmlFor="snapshot-window">
+                Window
+              </label>
+              <select
+                id="snapshot-window"
+                className="field"
+                name="window"
+                defaultValue="DAILY"
+              >
                 <option value="HOURLY">Hourly</option>
                 <option value="DAILY">Daily</option>
                 <option value="WEEKLY">Weekly</option>
                 <option value="MONTHLY">Monthly</option>
               </select>
             </div>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={pending}
-            >
+            <button type="submit" className="btn-primary" disabled={pending}>
               {pending ? 'Generating…' : 'Generate'}
             </button>
           </form>
@@ -332,7 +310,9 @@ export default function ProjectAnalyticsPage() {
                           {item.decision}
                         </span>
                       </td>
-                      <td className="text-xs text-slate-600">{item.algorithm}</td>
+                      <td className="text-xs text-slate-600">
+                        {item.algorithm}
+                      </td>
                     </tr>
                   ))
                 )}

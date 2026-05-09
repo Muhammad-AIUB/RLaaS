@@ -1,71 +1,61 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ErrorState } from '@/components/error-state';
-import { LoadingState } from '@/components/loading-state';
-import { PageHeader } from '@/components/page-header';
-import { Panel, PanelHeader } from '@/components/panel';
-import { ProjectTabs } from '@/components/project-tabs';
-import { apiFetch } from '@/lib/api-client';
-import { WebhookEndpointRecord } from '@/lib/types';
+import { ErrorState, LoadingState } from '@/components/feedback';
+import { PageHeader, ProjectTabs } from '@/components/layout';
+import { Panel, PanelHeader } from '@/components/ui';
+import { webhooksApi } from '@/lib/api';
+import { useAsyncResource } from '@/lib/hooks';
+import type { CreateWebhookInput, WebhookEndpointRecord } from '@/lib/types';
+
+function readNumber(form: FormData, key: string, fallback: number): number {
+  const raw = form.get(key);
+  if (raw === null || raw === '') return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
 
 export default function WebhooksPage() {
   const params = useParams<{ projectId: string }>();
-  const [webhooks, setWebhooks] = useState<WebhookEndpointRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const projectId = params.projectId as string;
+
+  const webhooks = useAsyncResource<WebhookEndpointRecord[]>(
+    () => webhooksApi.list(projectId),
+    [projectId],
+  );
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
   const [showForm, setShowForm] = useState(false);
-
-  async function loadWebhooks() {
-    try {
-      setLoading(true);
-      const data = await apiFetch<WebhookEndpointRecord[]>(
-        `/api/proxy/projects/${params.projectId}/webhooks`,
-      );
-      setWebhooks(data);
-      setError('');
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to load webhooks',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadWebhooks();
-  }, [params.projectId]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    setError('');
+    webhooks.setError('');
+
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const input: CreateWebhookInput = {
+      name: String(formData.get('name') ?? ''),
+      url: String(formData.get('url') ?? ''),
+      blockedRequestsThreshold: readNumber(
+        formData,
+        'blockedRequestsThreshold',
+        25,
+      ),
+      windowSeconds: readNumber(formData, 'windowSeconds', 300),
+      cooldownSeconds: readNumber(formData, 'cooldownSeconds', 300),
+    };
 
     try {
-      await apiFetch<WebhookEndpointRecord>(
-        `/api/proxy/projects/${params.projectId}/webhooks`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            name: formData.get('name'),
-            url: formData.get('url'),
-            blockedRequestsThreshold: Number(formData.get('blockedRequestsThreshold')),
-            windowSeconds: Number(formData.get('windowSeconds')),
-            cooldownSeconds: Number(formData.get('cooldownSeconds')),
-          }),
-        },
-      );
+      await webhooksApi.create(projectId, input);
       form.reset();
       setShowForm(false);
-      await loadWebhooks();
+      await webhooks.reload();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to create webhook',
+      webhooks.setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to create webhook',
       );
     } finally {
       setPending(false);
@@ -74,24 +64,25 @@ export default function WebhooksPage() {
 
   async function remove(webhookId: string) {
     try {
-      await apiFetch<{ success: boolean }>(
-        `/api/proxy/projects/${params.projectId}/webhooks/${webhookId}`,
-        { method: 'DELETE' },
-      );
-      await loadWebhooks();
+      await webhooksApi.remove(projectId, webhookId);
+      await webhooks.reload();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to delete webhook',
+      webhooks.setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to delete webhook',
       );
     }
   }
+
+  const list = webhooks.data ?? [];
 
   return (
     <>
       <PageHeader
         crumbs={[
           { href: '/projects', label: 'Projects' },
-          { href: `/projects/${params.projectId}`, label: 'Project' },
+          { href: `/projects/${projectId}`, label: 'Project' },
           { label: 'Webhooks' },
         ]}
         eyebrow="Alerts"
@@ -107,7 +98,7 @@ export default function WebhooksPage() {
           </button>
         }
       />
-      <ProjectTabs projectId={params.projectId as string} />
+      <ProjectTabs projectId={projectId} />
 
       {showForm ? (
         <Panel className="mb-6">
@@ -118,7 +109,12 @@ export default function WebhooksPage() {
           >
             <div>
               <label className="label">Name</label>
-              <input className="field" name="name" required placeholder="Slack alerts" />
+              <input
+                className="field"
+                name="name"
+                required
+                placeholder="Slack alerts"
+              />
             </div>
             <div className="sm:col-span-2 xl:col-span-3">
               <label className="label">URL</label>
@@ -131,21 +127,40 @@ export default function WebhooksPage() {
             </div>
             <div>
               <label className="label">Blocked threshold</label>
-              <input className="field" name="blockedRequestsThreshold" type="number" defaultValue="25" />
+              <input
+                className="field"
+                name="blockedRequestsThreshold"
+                type="number"
+                defaultValue="25"
+              />
             </div>
             <div>
               <label className="label">Window (s)</label>
-              <input className="field" name="windowSeconds" type="number" defaultValue="300" />
+              <input
+                className="field"
+                name="windowSeconds"
+                type="number"
+                defaultValue="300"
+              />
             </div>
             <div>
               <label className="label">Cooldown (s)</label>
-              <input className="field" name="cooldownSeconds" type="number" defaultValue="300" />
+              <input
+                className="field"
+                name="cooldownSeconds"
+                type="number"
+                defaultValue="300"
+              />
             </div>
             <div className="flex flex-wrap gap-2 sm:col-span-2 xl:col-span-4">
               <button type="submit" className="btn-primary" disabled={pending}>
                 {pending ? 'Creating…' : 'Create webhook'}
               </button>
-              <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowForm(false)}
+              >
                 Cancel
               </button>
             </div>
@@ -153,15 +168,15 @@ export default function WebhooksPage() {
         </Panel>
       ) : null}
 
-      {error ? (
+      {webhooks.error ? (
         <div className="mb-6">
-          <ErrorState message={error} />
+          <ErrorState message={webhooks.error} />
         </div>
       ) : null}
 
-      {loading ? (
+      {webhooks.loading ? (
         <LoadingState label="Loading webhooks…" />
-      ) : webhooks.length === 0 ? (
+      ) : list.length === 0 ? (
         <Panel>
           <p className="py-6 text-center text-sm text-slate-500">
             No webhooks configured yet.
@@ -169,7 +184,7 @@ export default function WebhooksPage() {
         </Panel>
       ) : (
         <div className="grid gap-4">
-          {webhooks.map((webhook) => (
+          {list.map((webhook) => (
             <Panel key={webhook.id}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="min-w-0">
@@ -183,7 +198,9 @@ export default function WebhooksPage() {
                     {webhook.url}
                   </p>
                   <p className="mt-2 text-xs text-slate-500">
-                    {webhook.blockedRequestsThreshold} blocked / {webhook.windowSeconds}s · cooldown {webhook.cooldownSeconds}s
+                    {webhook.blockedRequestsThreshold} blocked /{' '}
+                    {webhook.windowSeconds}s · cooldown{' '}
+                    {webhook.cooldownSeconds}s
                   </p>
                 </div>
                 <div>

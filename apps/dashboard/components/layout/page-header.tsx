@@ -1,7 +1,20 @@
 import Link from 'next/link';
 import { ReactNode } from 'react';
+import { ChevronRightIcon } from '@/components/icons';
 
-export type Crumb = { href?: string; label: string };
+export interface Crumb {
+  href?: string;
+  label: string;
+}
+
+export interface PageHeaderProps {
+  eyebrow?: ReactNode;
+  title: ReactNode;
+  description?: ReactNode;
+  crumbs?: Crumb[];
+  actions?: ReactNode;
+  meta?: ReactNode;
+}
 
 export function PageHeader({
   eyebrow,
@@ -10,37 +23,25 @@ export function PageHeader({
   crumbs,
   actions,
   meta,
-}: {
-  eyebrow?: ReactNode;
-  title: ReactNode;
-  description?: ReactNode;
-  crumbs?: Crumb[];
-  actions?: ReactNode;
-  meta?: ReactNode;
-}) {
+}: PageHeaderProps) {
   return (
     <header className="mb-6">
       {crumbs && crumbs.length > 0 ? (
-        <nav className="mb-2 flex items-center gap-1 text-xs text-slate-500">
-          {crumbs.map((c, i) => (
+        <nav
+          aria-label="Breadcrumb"
+          className="mb-2 flex items-center gap-1 text-xs text-slate-500"
+        >
+          {crumbs.map((crumb, i) => (
             <span key={i} className="flex items-center gap-1">
-              {c.href ? (
-                <Link href={c.href} className="hover:text-slate-700">
-                  {c.label}
+              {crumb.href ? (
+                <Link href={crumb.href} className="hover:text-slate-700">
+                  {crumb.label}
                 </Link>
               ) : (
-                <span className="text-slate-700">{c.label}</span>
+                <span className="text-slate-700">{crumb.label}</span>
               )}
               {i < crumbs.length - 1 ? (
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-3 w-3 text-slate-300"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path d="m9 6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+                <ChevronRightIcon className="h-3 w-3 text-slate-300" />
               ) : null}
             </span>
           ))}

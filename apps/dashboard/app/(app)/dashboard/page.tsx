@@ -2,15 +2,16 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AlgorithmBarChart } from '@/components/charts/algorithm-bar-chart';
-import { RequestsDonut } from '@/components/charts/requests-donut';
-import { EmptyState } from '@/components/empty-state';
-import { ErrorState } from '@/components/error-state';
-import { LoadingState } from '@/components/loading-state';
-import { MetricCard } from '@/components/metric-card';
-import { PageHeader } from '@/components/page-header';
-import { Panel, PanelHeader } from '@/components/panel';
-import { apiFetch } from '@/lib/api-client';
+import { AlgorithmBarChart, RequestsDonut } from '@/components/charts';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/feedback';
+import { ArrowRightIcon } from '@/components/icons';
+import { PageHeader } from '@/components/layout';
+import { MetricCard, Panel, PanelHeader } from '@/components/ui';
+import { analyticsApi, projectsApi } from '@/lib/api';
 import {
   AlgorithmPerformanceRecord,
   AnalyticsOverview,
@@ -20,62 +21,68 @@ import {
   TopIpRecord,
 } from '@/lib/types';
 
+interface DashboardData {
+  project: ProjectSummary;
+  overview: AnalyticsOverview;
+  topIps: TopIpRecord[];
+  topEndpoints: TopEndpointRecord[];
+  algorithms: AlgorithmPerformanceRecord[];
+  logs: RequestLogRecord[];
+}
+
 export default function DashboardOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [project, setProject] = useState<ProjectSummary | null>(null);
-  const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
-  const [topIps, setTopIps] = useState<TopIpRecord[]>([]);
-  const [topEndpoints, setTopEndpoints] = useState<TopEndpointRecord[]>([]);
-  const [algorithms, setAlgorithms] = useState<AlgorithmPerformanceRecord[]>([]);
-  const [logs, setLogs] = useState<RequestLogRecord[]>([]);
+  const [hasProjects, setHasProjects] = useState(true);
+  const [data, setData] = useState<DashboardData | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
       try {
         setLoading(true);
-        const projects = await apiFetch<ProjectSummary[]>('/api/proxy/projects');
-        const firstProject = projects[0] ?? null;
-        setProject(firstProject);
+        const projects = await projectsApi.list();
+        const project = projects[0] ?? null;
 
-        if (!firstProject) {
+        if (cancelled) return;
+
+        if (!project) {
+          setHasProjects(false);
+          setData(null);
           return;
         }
 
-        const [overviewData, ipData, endpointData, algorithmData, logData] =
+        const [overview, topIps, topEndpoints, algorithms, logs] =
           await Promise.all([
-            apiFetch<AnalyticsOverview>(
-              `/api/proxy/projects/${firstProject.id}/analytics/overview`,
-            ),
-            apiFetch<TopIpRecord[]>(
-              `/api/proxy/projects/${firstProject.id}/analytics/top-ips?limit=5`,
-            ),
-            apiFetch<TopEndpointRecord[]>(
-              `/api/proxy/projects/${firstProject.id}/analytics/top-endpoints?limit=5`,
-            ),
-            apiFetch<AlgorithmPerformanceRecord[]>(
-              `/api/proxy/projects/${firstProject.id}/analytics/algorithms`,
-            ),
-            apiFetch<RequestLogRecord[]>(
-              `/api/proxy/projects/${firstProject.id}/analytics/logs?limit=8`,
-            ),
+            analyticsApi.overview(project.id),
+            analyticsApi.topIps(project.id, 5),
+            analyticsApi.topEndpoints(project.id, 5),
+            analyticsApi.algorithms(project.id),
+            analyticsApi.logs(project.id, 8),
           ]);
 
-        setOverview(overviewData);
-        setTopIps(ipData);
-        setTopEndpoints(endpointData);
-        setAlgorithms(algorithmData);
-        setLogs(logData);
+        if (cancelled) return;
+
+        setHasProjects(true);
+        setData({ project, overview, topIps, topEndpoints, algorithms, logs });
       } catch (caughtError) {
+        if (cancelled) return;
         setError(
-          caughtError instanceof Error ? caughtError.message : 'Failed to load dashboard',
+          caughtError instanceof Error
+            ? caughtError.message
+            : 'Failed to load dashboard',
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
     void load();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (loading) {
@@ -100,7 +107,7 @@ export default function DashboardOverviewPage() {
     );
   }
 
-  if (!project || !overview) {
+  if (!hasProjects || !data) {
     return (
       <>
         <PageHeader eyebrow="Overview" title="Operator dashboard" />
@@ -114,6 +121,8 @@ export default function DashboardOverviewPage() {
     );
   }
 
+  const { project, overview, topIps, topEndpoints, algorithms, logs } = data;
+
   return (
     <>
       <PageHeader
@@ -123,7 +132,9 @@ export default function DashboardOverviewPage() {
           <>
             Showing data for{' '}
             <span className="font-medium text-slate-700">{project.name}</span> ·{' '}
-            <span className="badge-neutral !ml-1 !py-0">{project.environment}</span>
+            <span className="badge-neutral !ml-1 !py-0">
+              {project.environment}
+            </span>
           </>
         }
         actions={
@@ -132,14 +143,11 @@ export default function DashboardOverviewPage() {
             className="btn-secondary"
           >
             Full analytics
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 12h14M13 5l7 7-7 7" />
-            </svg>
+            <ArrowRightIcon className="h-4 w-4" />
           </Link>
         }
       />
 
-      {/* Metrics */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Total requests"
@@ -163,7 +171,6 @@ export default function DashboardOverviewPage() {
         />
       </div>
 
-      {/* Charts */}
       <div className="mt-6 grid gap-4 lg:grid-cols-5">
         <Panel className="lg:col-span-3">
           <PanelHeader
@@ -189,7 +196,6 @@ export default function DashboardOverviewPage() {
         </Panel>
       </div>
 
-      {/* Lists */}
       <div className="mt-6 grid gap-4 lg:grid-cols-3">
         <Panel>
           <PanelHeader eyebrow="Top offenders" title="IP addresses" />

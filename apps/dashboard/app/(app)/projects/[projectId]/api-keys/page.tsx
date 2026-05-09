@@ -1,69 +1,50 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ErrorState } from '@/components/error-state';
-import { LoadingState } from '@/components/loading-state';
-import { PageHeader } from '@/components/page-header';
-import { Panel, PanelHeader } from '@/components/panel';
-import { ProjectTabs } from '@/components/project-tabs';
-import { apiFetch } from '@/lib/api-client';
-import { ApiKeyRecord } from '@/lib/types';
+import { ErrorState, LoadingState } from '@/components/feedback';
+import { AlertIcon } from '@/components/icons';
+import { PageHeader, ProjectTabs } from '@/components/layout';
+import { Panel, PanelHeader } from '@/components/ui';
+import { apiKeysApi } from '@/lib/api';
+import { useAsyncResource } from '@/lib/hooks';
+import type { ApiKeyRecord, CreateApiKeyInput } from '@/lib/types';
 
 export default function ApiKeysPage() {
   const params = useParams<{ projectId: string }>();
-  const [records, setRecords] = useState<ApiKeyRecord[]>([]);
+  const projectId = params.projectId as string;
+
+  const keys = useAsyncResource<ApiKeyRecord[]>(
+    () => apiKeysApi.list(projectId),
+    [projectId],
+  );
+
   const [revealedKey, setRevealedKey] = useState('');
   const [copied, setCopied] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState('');
-
-  async function load() {
-    try {
-      setLoading(true);
-      const data = await apiFetch<ApiKeyRecord[]>(
-        `/api/proxy/projects/${params.projectId}/api-keys`,
-      );
-      setRecords(data);
-      setError('');
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to load API keys',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, [params.projectId]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    setError('');
+    keys.setError('');
+
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const input: CreateApiKeyInput = {
+      name: String(formData.get('name') ?? ''),
+      expiresAt: (formData.get('expiresAt') as string) || undefined,
+    };
 
     try {
-      const data = await apiFetch<ApiKeyRecord>(
-        `/api/proxy/projects/${params.projectId}/api-keys`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            name: formData.get('name'),
-            expiresAt: formData.get('expiresAt') || undefined,
-          }),
-        },
-      );
-      setRevealedKey(data.key ?? '');
+      const created = await apiKeysApi.create(projectId, input);
+      setRevealedKey(created.key ?? '');
       form.reset();
-      await load();
+      await keys.reload();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to create API key',
+      keys.setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to create API key',
       );
     } finally {
       setPending(false);
@@ -72,14 +53,13 @@ export default function ApiKeysPage() {
 
   async function revoke(apiKeyId: string) {
     try {
-      await apiFetch<ApiKeyRecord>(
-        `/api/proxy/projects/${params.projectId}/api-keys/${apiKeyId}/revoke`,
-        { method: 'PATCH' },
-      );
-      await load();
+      await apiKeysApi.revoke(projectId, apiKeyId);
+      await keys.reload();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to revoke API key',
+      keys.setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to revoke API key',
       );
     }
   }
@@ -90,23 +70,25 @@ export default function ApiKeysPage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      /* noop */
+      /* clipboard not available — silently ignore */
     }
   }
+
+  const records = keys.data ?? [];
 
   return (
     <>
       <PageHeader
         crumbs={[
           { href: '/projects', label: 'Projects' },
-          { href: `/projects/${params.projectId}`, label: 'Project' },
+          { href: `/projects/${projectId}`, label: 'Project' },
           { label: 'API Keys' },
         ]}
         eyebrow="Credentials"
         title="API keys"
         description="Issue keys for gateway calls and revoke them as soon as you suspect leakage."
       />
-      <ProjectTabs projectId={params.projectId as string} />
+      <ProjectTabs projectId={projectId} />
 
       <Panel className="mb-6">
         <PanelHeader
@@ -119,11 +101,11 @@ export default function ApiKeysPage() {
           onSubmit={handleCreate}
         >
           <div className="sm:col-span-1">
-            <label className="label" htmlFor="name">
+            <label className="label" htmlFor="api-key-name">
               Name
             </label>
             <input
-              id="name"
+              id="api-key-name"
               name="name"
               required
               className="field"
@@ -131,11 +113,11 @@ export default function ApiKeysPage() {
             />
           </div>
           <div className="sm:col-span-1">
-            <label className="label" htmlFor="expiresAt">
+            <label className="label" htmlFor="api-key-expires">
               Expires (optional)
             </label>
             <input
-              id="expiresAt"
+              id="api-key-expires"
               name="expiresAt"
               type="datetime-local"
               className="field"
@@ -151,11 +133,8 @@ export default function ApiKeysPage() {
         {revealedKey ? (
           <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <div className="flex items-start gap-3">
-              <svg viewBox="0 0 24 24" className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 9v4M12 17h.01" />
-                <path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              </svg>
-              <div className="flex-1 min-w-0">
+              <AlertIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-amber-900">
                   Copy this key now — it won't be shown again.
                 </p>
@@ -163,7 +142,11 @@ export default function ApiKeysPage() {
                   <code className="flex-1 truncate rounded-md border border-amber-200 bg-white px-3 py-2 font-mono text-xs text-slate-800">
                     {revealedKey}
                   </code>
-                  <button type="button" className="btn-secondary btn-sm" onClick={copyKey}>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={copyKey}
+                  >
                     {copied ? 'Copied' : 'Copy'}
                   </button>
                 </div>
@@ -173,13 +156,13 @@ export default function ApiKeysPage() {
         ) : null}
       </Panel>
 
-      {error ? (
+      {keys.error ? (
         <div className="mb-6">
-          <ErrorState message={error} />
+          <ErrorState message={keys.error} />
         </div>
       ) : null}
 
-      {loading ? (
+      {keys.loading ? (
         <LoadingState label="Loading API keys…" />
       ) : records.length === 0 ? (
         <Panel>

@@ -1,4 +1,4 @@
-import { AppShell } from '@/components/app-shell';
+import { AppShell } from '@/components/layout';
 
 export default function ProtectedLayout({
   children,

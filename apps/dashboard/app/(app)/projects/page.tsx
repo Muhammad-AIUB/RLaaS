@@ -1,68 +1,55 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useState } from 'react';
-import { EmptyState } from '@/components/empty-state';
-import { ErrorState } from '@/components/error-state';
-import { LoadingState } from '@/components/loading-state';
-import { PageHeader } from '@/components/page-header';
-import { Panel, PanelHeader } from '@/components/panel';
-import { apiFetch } from '@/lib/api-client';
-import { ProjectSummary } from '@/lib/types';
+import { FormEvent, useState } from 'react';
+import {
+  EmptyState,
+  ErrorState,
+  LoadingState,
+} from '@/components/feedback';
+import { PlusIcon, ProjectsIcon } from '@/components/icons';
+import { PageHeader } from '@/components/layout';
+import { Panel, PanelHeader } from '@/components/ui';
+import { projectsApi } from '@/lib/api';
+import { useAsyncResource } from '@/lib/hooks';
+import type { CreateProjectInput, ProjectSummary } from '@/lib/types';
 
 export default function ProjectsPage() {
-  const [projects, setProjects] = useState<ProjectSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const projects = useAsyncResource<ProjectSummary[]>(() => projectsApi.list());
   const [pending, setPending] = useState(false);
   const [showForm, setShowForm] = useState(false);
-
-  async function loadProjects() {
-    try {
-      setLoading(true);
-      const data = await apiFetch<ProjectSummary[]>('/api/proxy/projects');
-      setProjects(data);
-      setError('');
-    } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to load projects',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void loadProjects();
-  }, []);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
-    setError('');
+    projects.setError('');
+
     const form = event.currentTarget;
     const formData = new FormData(form);
+    const input: CreateProjectInput = {
+      name: String(formData.get('name') ?? ''),
+      description: (formData.get('description') as string) || undefined,
+      environment:
+        (formData.get('environment') as string) || undefined,
+    };
 
     try {
-      await apiFetch<ProjectSummary>('/api/proxy/projects', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: formData.get('name'),
-          description: formData.get('description'),
-          environment: formData.get('environment'),
-        }),
-      });
+      await projectsApi.create(input);
       form.reset();
       setShowForm(false);
-      await loadProjects();
+      await projects.reload();
     } catch (caughtError) {
-      setError(
-        caughtError instanceof Error ? caughtError.message : 'Failed to create project',
+      projects.setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : 'Failed to create project',
       );
     } finally {
       setPending(false);
     }
   }
+
+  const list = projects.data ?? [];
 
   return (
     <>
@@ -76,9 +63,7 @@ export default function ProjectsPage() {
             className="btn-primary"
             onClick={() => setShowForm((s) => !s)}
           >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+            <PlusIcon className="h-4 w-4" />
             {showForm ? 'Close' : 'New project'}
           </button>
         }
@@ -96,17 +81,23 @@ export default function ProjectsPage() {
             onSubmit={handleCreate}
           >
             <div>
-              <label className="label" htmlFor="name">
+              <label className="label" htmlFor="project-name">
                 Project name
               </label>
-              <input id="name" name="name" required className="field" placeholder="Public API" />
+              <input
+                id="project-name"
+                name="name"
+                required
+                className="field"
+                placeholder="Public API"
+              />
             </div>
             <div>
-              <label className="label" htmlFor="environment">
+              <label className="label" htmlFor="project-environment">
                 Environment
               </label>
               <input
-                id="environment"
+                id="project-environment"
                 name="environment"
                 defaultValue="production"
                 className="field"
@@ -114,11 +105,11 @@ export default function ProjectsPage() {
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="label" htmlFor="description">
+              <label className="label" htmlFor="project-description">
                 Description
               </label>
               <textarea
-                id="description"
+                id="project-description"
                 name="description"
                 rows={3}
                 placeholder="What does this API protect?"
@@ -141,15 +132,15 @@ export default function ProjectsPage() {
         </Panel>
       ) : null}
 
-      {error ? (
+      {projects.error ? (
         <div className="mb-6">
-          <ErrorState message={error} />
+          <ErrorState message={projects.error} />
         </div>
       ) : null}
 
-      {loading ? (
+      {projects.loading ? (
         <LoadingState label="Loading projects…" />
-      ) : projects.length === 0 ? (
+      ) : list.length === 0 ? (
         <EmptyState
           title="No projects yet"
           description="Create your first project to start issuing API keys and configuring rate-limit rules."
@@ -158,7 +149,7 @@ export default function ProjectsPage() {
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {projects.map((project) => (
+          {list.map((project) => (
             <Link
               key={project.id}
               href={`/projects/${project.id}`}
@@ -166,9 +157,7 @@ export default function ProjectsPage() {
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-brand-100">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  </svg>
+                  <ProjectsIcon className="h-5 w-5" />
                 </div>
                 <span className="badge-neutral">{project.environment}</span>
               </div>

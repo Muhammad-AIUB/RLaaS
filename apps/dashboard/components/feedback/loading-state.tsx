@@ -1,6 +1,10 @@
-export function LoadingState({ label = 'Loading data…' }: { label?: string }) {
+export interface LoadingStateProps {
+  label?: string;
+}
+
+export function LoadingState({ label = 'Loading data…' }: LoadingStateProps) {
   return (
-    <div className="card p-8">
+    <div className="card p-8" role="status" aria-live="polite">
       <div className="flex items-center gap-3 text-sm text-slate-500">
         <span
           className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600"
