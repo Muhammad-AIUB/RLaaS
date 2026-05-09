@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { AUTH_COOKIE, getApiBaseUrl } from '@/lib/session';
+import { AUTH_COOKIE, getApiBaseUrl } from '@/lib/auth/session';
 
 async function readResponsePayload(response: Response) {
   const text = await response.text();
