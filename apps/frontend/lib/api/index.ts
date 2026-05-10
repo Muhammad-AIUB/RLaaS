@@ -8,4 +8,5 @@ export {
   webhooksApi,
   auditLogsApi,
   analyticsApi,
+  gatewayTesterApi,
 } from './services';

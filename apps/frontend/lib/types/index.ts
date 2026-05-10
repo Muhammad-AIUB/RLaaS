@@ -4,5 +4,6 @@ export * from './members';
 export * from './api-keys';
 export * from './rules';
 export * from './analytics';
+export * from './gateway-tester';
 export * from './audit-logs';
 export * from './webhooks';

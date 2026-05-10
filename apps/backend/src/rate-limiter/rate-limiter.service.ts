@@ -13,6 +13,7 @@ import { AlgorithmRegistryService } from '../algorithms/algorithm-registry.servi
 import { RateLimitAlgorithm } from '../algorithms/algorithm.enum';
 import { RateLimitResult } from '../algorithms/interfaces/rate-limit-result.interface';
 import { GatewayCheckDto } from '../gateway/dto/gateway-check.dto';
+import { ProjectGatewayCheckDto } from '../gateway/dto/project-gateway-check.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { RulesService } from '../rules/rules.service';
@@ -27,6 +28,14 @@ type ApiKeyValidationResult =
     }
   | { ok: false; response: GatewayCheckResult };
 
+type ValidatedApiKey = {
+  id: string;
+  projectId: string;
+  keyPrefix: string;
+  status: ApiKeyStatus;
+  expiresAt: Date | null;
+};
+
 @Injectable()
 export class RateLimiterService {
   constructor(
@@ -40,14 +49,62 @@ export class RateLimiterService {
   ) {}
 
   async checkRequest(dto: GatewayCheckDto): Promise<GatewayCheckResult> {
-    const redis = this.redisService.getClient();
     const validation = await this.validateApiKey(dto.apiKey);
 
     if (!validation.ok) {
       return validation.response;
     }
 
-    const { apiKey } = validation;
+    return this.evaluateRequest(dto, validation.apiKey);
+  }
+
+  async checkProjectRequest(
+    projectId: string,
+    dto: ProjectGatewayCheckDto,
+  ): Promise<GatewayCheckResult> {
+    const apiKey = await this.prismaService.apiKey.findFirst({
+      where: {
+        id: dto.apiKeyId,
+        projectId,
+      },
+      select: {
+        id: true,
+        projectId: true,
+        keyPrefix: true,
+        status: true,
+        expiresAt: true,
+      },
+    });
+
+    if (!apiKey) {
+      return this.buildRejectedResponse('API_KEY_INVALID');
+    }
+
+    if (apiKey.status === ApiKeyStatus.REVOKED) {
+      return this.buildRejectedResponse('API_KEY_REVOKED');
+    }
+
+    if (apiKey.expiresAt && apiKey.expiresAt <= new Date()) {
+      return this.buildRejectedResponse('API_KEY_REVOKED');
+    }
+
+    return this.evaluateRequest(
+      {
+        apiKey: apiKey.keyPrefix,
+        ip: dto.ip,
+        endpoint: dto.endpoint,
+        method: dto.method,
+        userTier: dto.userTier,
+      },
+      apiKey,
+    );
+  }
+
+  private async evaluateRequest(
+    dto: GatewayCheckDto,
+    apiKey: ValidatedApiKey,
+  ): Promise<GatewayCheckResult> {
+    const redis = this.redisService.getClient();
     const normalizedMethod = dto.method.toUpperCase();
     const normalizedTier = dto.userTier.toUpperCase();
 

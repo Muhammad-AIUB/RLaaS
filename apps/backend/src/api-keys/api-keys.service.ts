@@ -40,6 +40,7 @@ export class ApiKeysService {
         keyPrefix,
         hashedKey,
         hashVersion: 'hmac-sha256-v1',
+        status: ApiKeyStatus.ACTIVE,
         expiresAt: dto.expiresAt,
       },
     });

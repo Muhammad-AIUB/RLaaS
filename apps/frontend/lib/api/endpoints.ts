@@ -17,6 +17,10 @@ export const endpoints = {
     apiKeys: (projectId: string) => `${PROXY}/projects/${projectId}/api-keys`,
     apiKeyRevoke: (projectId: string, keyId: string) =>
       `${PROXY}/projects/${projectId}/api-keys/${keyId}/revoke`,
+    gatewayTester: {
+      check: (projectId: string) =>
+        `${PROXY}/projects/${projectId}/gateway-tester/check`,
+    },
     rules: (projectId: string) => `${PROXY}/projects/${projectId}/rules`,
     rule: (projectId: string, ruleId: string) =>
       `${PROXY}/projects/${projectId}/rules/${ruleId}`,

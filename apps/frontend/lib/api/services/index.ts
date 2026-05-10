@@ -5,3 +5,4 @@ export { rulesApi } from './rules';
 export { webhooksApi } from './webhooks';
 export { auditLogsApi } from './audit-logs';
 export { analyticsApi } from './analytics';
+export { gatewayTesterApi } from './gateway-tester';

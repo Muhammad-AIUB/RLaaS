@@ -14,6 +14,7 @@ function buildTabs(projectId: string): ProjectTab[] {
   return [
     { href: base, label: 'Overview' },
     { href: `${base}/analytics`, label: 'Analytics' },
+    { href: `${base}/gateway-tester`, label: 'Gateway Tester' },
     { href: `${base}/rules`, label: 'Rules' },
     { href: `${base}/api-keys`, label: 'API Keys' },
     { href: `${base}/members`, label: 'Members' },
