@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@rlaas/backend", "start:dev"],
+      "port": 3000
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@rlaas/frontend", "dev"],
+      "port": 3001
+    },
+    {
+      "name": "express-demo",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@rlaas/express-demo", "dev"],
+      "port": 4000
+    }
+  ]
+}

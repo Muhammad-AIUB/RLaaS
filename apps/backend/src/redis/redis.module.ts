@@ -10,13 +10,17 @@ import { RedisService } from './redis.service';
     {
       provide: REDIS_CLIENT,
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) =>
-        new Redis({
-          host: configService.get<string>('REDIS_HOST', '127.0.0.1'),
-          port: configService.get<number>('REDIS_PORT', 6379),
-          lazyConnect: true,
-          maxRetriesPerRequest: 1,
-        }),
+      useFactory: (configService: ConfigService) => {
+        const url = configService.get<string>('REDIS_URL');
+        return url
+          ? new Redis(url, { lazyConnect: true, maxRetriesPerRequest: 1 })
+          : new Redis({
+              host: configService.get<string>('REDIS_HOST', '127.0.0.1'),
+              port: configService.get<number>('REDIS_PORT', 6379),
+              lazyConnect: true,
+              maxRetriesPerRequest: 1,
+            });
+      },
     },
     RedisService,
   ],
