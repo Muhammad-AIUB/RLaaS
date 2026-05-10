@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: rlaas-backend
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: apps/backend
+    buildCommand: npm i -g pnpm && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build
+    startCommand: pnpm prisma migrate deploy && node dist/main
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: JWT_EXPIRES_IN
+        value: 1d
+      - key: RATE_LIMIT_DEFAULT_LIMIT
+        value: "100"
+      - key: RATE_LIMIT_DEFAULT_WINDOW_SECONDS
+        value: "60"
+      - key: RATE_LIMIT_DEFAULT_ALGORITHM
+        value: fixed_window
+      - key: IDEMPOTENCY_TTL_SECONDS
+        value: "300"
+      - key: PRISMA_QUERY_DEBUG
+        value: "false"
+      - key: SEED_DEMO_EMAIL
+        value: demo@rlaas.local
+      - key: SEED_DEMO_PASSWORD
+        value: DemoPass123!
+      - key: SEED_DEMO_FULL_NAME
+        value: RLaaS Demo User
+      - key: SEED_RAW_API_KEY
+        value: rlaas_live_demo_seed_key_1234567890
+      # Set these in the Render dashboard (Environment tab):
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: API_KEY_HASH_PEPPER
+        sync: false
