@@ -18,6 +18,7 @@ describe('RateLimiterService', () => {
   const consumeMock = jest.fn();
   const createLogMock = jest.fn();
   const updateApiKeyMock = jest.fn();
+  const findApiKeyFirstMock = jest.fn();
   const findByRawKeyMock = jest.fn();
   const findMatchingRuleMock = jest.fn();
   const redisGetMock = jest.fn();
@@ -47,6 +48,7 @@ describe('RateLimiterService', () => {
       create: createLogMock,
     },
     apiKey: {
+      findFirst: findApiKeyFirstMock,
       update: updateApiKeyMock,
     },
   } as unknown as PrismaService;
@@ -76,6 +78,7 @@ describe('RateLimiterService', () => {
     consumeMock.mockReset();
     createLogMock.mockReset();
     updateApiKeyMock.mockReset();
+    findApiKeyFirstMock.mockReset();
     findByRawKeyMock.mockReset();
     findMatchingRuleMock.mockReset();
     redisGetMock.mockReset();
@@ -171,5 +174,69 @@ describe('RateLimiterService', () => {
         lastUsedAt: expect.any(Date),
       },
     });
+  });
+
+  it('evaluates a project tester request by API key id', async () => {
+    findApiKeyFirstMock.mockResolvedValue({
+      id: 'api-key-1',
+      projectId: 'project-1',
+      keyPrefix: 'rlaas_live_abc',
+      status: ApiKeyStatus.ACTIVE,
+      expiresAt: null,
+    });
+    findMatchingRuleMock.mockResolvedValue({
+      id: 'rule-1',
+      name: 'Tester rule',
+      scope: 'GLOBAL',
+      algorithm: RateLimitAlgorithm.FIXED_WINDOW,
+      limit: 2,
+      windowSeconds: 60,
+    });
+    consumeMock.mockResolvedValue({
+      allowed: true,
+      limit: 2,
+      remaining: 1,
+      retryAfter: 0,
+      algorithm: RateLimitAlgorithm.FIXED_WINDOW,
+    });
+    createLogMock.mockResolvedValue({});
+    updateApiKeyMock.mockResolvedValue({});
+
+    await expect(
+      service.checkProjectRequest('project-1', {
+        apiKeyId: 'api-key-1',
+        ip: '203.0.113.10',
+        endpoint: '/api/orders',
+        method: 'GET',
+        userTier: 'free',
+      }),
+    ).resolves.toMatchObject({
+      allowed: true,
+      limit: 2,
+      remaining: 1,
+      ruleId: 'rule-1',
+      ruleName: 'Tester rule',
+    });
+
+    expect(findApiKeyFirstMock).toHaveBeenCalledWith({
+      where: {
+        id: 'api-key-1',
+        projectId: 'project-1',
+      },
+      select: {
+        id: true,
+        projectId: true,
+        keyPrefix: true,
+        status: true,
+        expiresAt: true,
+      },
+    });
+    expect(findMatchingRuleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKeyId: 'api-key-1',
+        apiKeyPrefix: 'rlaas_live_abc',
+        projectId: 'project-1',
+      }),
+    );
   });
 });

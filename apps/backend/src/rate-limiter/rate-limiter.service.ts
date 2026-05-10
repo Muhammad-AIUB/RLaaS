@@ -39,6 +39,97 @@ export class RateLimiterService {
     private readonly webhooksService: WebhooksService,
   ) {}
 
+  async checkProjectRequest(
+    projectId: string,
+    dto: {
+      apiKeyId: string;
+      ip: string;
+      endpoint: string;
+      method: string;
+      userTier: string;
+    },
+  ): Promise<GatewayCheckResult> {
+    const apiKey = await this.prismaService.apiKey.findFirst({
+      where: { id: dto.apiKeyId, projectId },
+      select: {
+        id: true,
+        projectId: true,
+        keyPrefix: true,
+        status: true,
+        expiresAt: true,
+      },
+    });
+
+    if (!apiKey) {
+      return this.buildRejectedResponse('API_KEY_INVALID');
+    }
+
+    if (apiKey.status === ApiKeyStatus.REVOKED) {
+      return this.buildRejectedResponse('API_KEY_REVOKED');
+    }
+
+    if (apiKey.expiresAt && apiKey.expiresAt <= new Date()) {
+      return this.buildRejectedResponse('API_KEY_REVOKED');
+    }
+
+    const normalizedMethod = dto.method.toUpperCase();
+    const normalizedTier = dto.userTier.toUpperCase();
+    const proxyDto: GatewayCheckDto = {
+      apiKey: apiKey.id,
+      ip: dto.ip,
+      endpoint: dto.endpoint,
+      method: normalizedMethod,
+      userTier: normalizedTier,
+    };
+
+    const rule =
+      (await this.rulesService.findMatchingRule({
+        projectId: apiKey.projectId,
+        apiKeyId: apiKey.id,
+        apiKeyPrefix: apiKey.keyPrefix,
+        request: proxyDto,
+      })) ?? this.buildDefaultRule();
+
+    const key = this.buildRateLimitKey(proxyDto, rule, projectId);
+
+    const result = await this.algorithmRegistryService.get(rule.algorithm).consume({
+      key,
+      limit: rule.limit,
+      windowSeconds: rule.windowSeconds,
+      algorithm: rule.algorithm,
+    });
+
+    const response: GatewayCheckResult = {
+      ...result,
+      reason: result.allowed ? undefined : 'RATE_LIMIT_EXCEEDED',
+      ruleId: rule.id,
+      ruleName: rule.name,
+      scope: rule.scope,
+    };
+
+    await this.persistRequestOutcome({
+      apiKeyId: apiKey.id,
+      projectId: apiKey.projectId,
+      dto: proxyDto,
+      rule,
+      result,
+      response,
+    });
+
+    if (!response.allowed) {
+      void this.webhooksService.notifyHighBlockedActivity({
+        projectId: apiKey.projectId,
+        endpoint: dto.endpoint,
+        method: normalizedMethod,
+        ruleId: rule.id,
+        ruleName: rule.name,
+        ipAddress: dto.ip,
+      });
+    }
+
+    return response;
+  }
+
   async checkRequest(dto: GatewayCheckDto): Promise<GatewayCheckResult> {
     const redis = this.redisService.getClient();
     const validation = await this.validateApiKey(dto.apiKey);
