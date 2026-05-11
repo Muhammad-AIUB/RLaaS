@@ -24,6 +24,7 @@ describe('FixedWindowAlgorithmService', () => {
         key: 'rate-limit:key',
         limit: 100,
         windowSeconds: 60,
+        algorithm: RateLimitAlgorithm.FIXED_WINDOW,
       }),
     ).resolves.toEqual({
       allowed: true,
@@ -42,6 +43,7 @@ describe('FixedWindowAlgorithmService', () => {
         key: 'rate-limit:key',
         limit: 100,
         windowSeconds: 60,
+        algorithm: RateLimitAlgorithm.FIXED_WINDOW,
       }),
     ).resolves.toEqual({
       allowed: false,

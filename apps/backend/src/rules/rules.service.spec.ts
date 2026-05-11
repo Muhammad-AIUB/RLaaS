@@ -4,6 +4,8 @@ import {
   RuleScope,
   UserTier,
 } from '@prisma/client';
+import { AlgorithmRegistryService } from '../algorithms/algorithm-registry.service';
+import { AuditService } from '../audit/audit.service';
 import { GatewayCheckDto } from '../gateway/dto/gateway-check.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
@@ -18,7 +20,14 @@ describe('RulesService', () => {
   } as unknown as PrismaService;
 
   const projectsService = {} as ProjectsService;
-  const service = new RulesService(prismaService, projectsService);
+  const algorithmRegistryService = {} as AlgorithmRegistryService;
+  const auditService = {} as AuditService;
+  const service = new RulesService(
+    prismaService,
+    projectsService,
+    algorithmRegistryService,
+    auditService,
+  );
 
   beforeEach(() => {
     findManyMock.mockReset();
