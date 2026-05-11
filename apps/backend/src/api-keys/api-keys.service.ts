@@ -12,6 +12,7 @@ import { RedisService } from '../redis/redis.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
 
 const API_KEY_CACHE_TTL = 30;
+const API_KEY_LIST_TTL = 60;
 
 @Injectable()
 export class ApiKeysService {
@@ -62,23 +63,46 @@ export class ApiKeysService {
       request,
     });
 
+    await this.bustApiKeyListCache(projectId);
     return {
       ...apiKey,
       key: plainKey,
     };
   }
 
+  private apiKeyListKey(projectId: string) {
+    return `cache:apikeys:project:${projectId}`;
+  }
+
+  private async bustApiKeyListCache(projectId: string) {
+    try {
+      await this.redisService.getClient().del(this.apiKeyListKey(projectId));
+    } catch { /* non-critical */ }
+  }
+
   async listByProject(userId: string, projectId: string) {
+    const key = this.apiKeyListKey(projectId);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
+
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
 
-    return this.prismaService.apiKey.findMany({
+    const apiKeys = await this.prismaService.apiKey.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
     });
+
+    try {
+      await this.redisService.getClient().setex(key, API_KEY_LIST_TTL, JSON.stringify(apiKeys));
+    } catch { /* non-critical */ }
+
+    return apiKeys;
   }
 
   async revoke(
@@ -112,6 +136,7 @@ export class ApiKeysService {
 
     // Bust the gateway cache for this key so revocation is instant
     void this.bustApiKeyCache(existing.hashedKey);
+    void this.bustApiKeyListCache(projectId);
 
     void this.auditService.log({
       action: 'api_key.revoked',

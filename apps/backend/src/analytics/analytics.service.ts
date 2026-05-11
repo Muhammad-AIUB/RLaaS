@@ -10,8 +10,11 @@ import {
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
+import { RedisService } from '../redis/redis.service';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { CreateSnapshotDto } from './dto/create-snapshot.dto';
+
+const ANALYTICS_TTL = 60;
 
 @Injectable()
 export class AnalyticsService {
@@ -20,33 +23,69 @@ export class AnalyticsService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly projectsService: ProjectsService,
+    private readonly redisService: RedisService,
   ) {}
 
+  private analyticsKey(type: string, projectId: string, query: AnalyticsQueryDto) {
+    const q = `${query.from?.toISOString() ?? ''}:${query.to?.toISOString() ?? ''}:${query.limit ?? ''}`;
+    return `cache:analytics:${type}:${projectId}:${q}`;
+  }
+
   async getOverview(userId: string, projectId: string, query: AnalyticsQueryDto) {
+    const key = this.analyticsKey('overview', projectId, query);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
+
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
-    return this.queryOverview(projectId, query);
+    const result = await this.queryOverview(projectId, query);
+    try {
+      await this.redisService.getClient().setex(key, ANALYTICS_TTL, JSON.stringify(result));
+    } catch { /* non-critical */ }
+    return result;
   }
 
   async getTopIps(userId: string, projectId: string, query: AnalyticsQueryDto) {
+    const key = this.analyticsKey('topIps', projectId, query);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
+
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
-    return this.queryTopIps(projectId, query);
+    const result = await this.queryTopIps(projectId, query);
+    try {
+      await this.redisService.getClient().setex(key, ANALYTICS_TTL, JSON.stringify(result));
+    } catch { /* non-critical */ }
+    return result;
   }
 
   async getTopEndpoints(userId: string, projectId: string, query: AnalyticsQueryDto) {
+    const key = this.analyticsKey('topEndpoints', projectId, query);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
+
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
-    return this.queryTopEndpoints(projectId, query);
+    const result = await this.queryTopEndpoints(projectId, query);
+    try {
+      await this.redisService.getClient().setex(key, ANALYTICS_TTL, JSON.stringify(result));
+    } catch { /* non-critical */ }
+    return result;
   }
 
   async getAlgorithmPerformance(
@@ -54,12 +93,22 @@ export class AnalyticsService {
     projectId: string,
     query: AnalyticsQueryDto,
   ) {
+    const key = this.analyticsKey('algorithms', projectId, query);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
+
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
-    return this.queryAlgorithmPerformance(projectId, query);
+    const result = await this.queryAlgorithmPerformance(projectId, query);
+    try {
+      await this.redisService.getClient().setex(key, ANALYTICS_TTL, JSON.stringify(result));
+    } catch { /* non-critical */ }
+    return result;
   }
 
   private async queryOverview(projectId: string, query: AnalyticsQueryDto) {

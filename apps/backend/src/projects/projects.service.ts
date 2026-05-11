@@ -21,8 +21,8 @@ import { UpdateProjectMemberRoleDto } from './dto/update-project-member-role.dto
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { toSlug } from '../common/utils/slug.util';
 
-const PROJECT_LIST_TTL = 30;
-const PROJECT_DETAIL_TTL = 30;
+const PROJECT_LIST_TTL = 120;
+const PROJECT_DETAIL_TTL = 120;
 
 @Injectable()
 export class ProjectsService {
@@ -114,14 +114,14 @@ export class ProjectsService {
   }
 
   async getById(userId: string, projectId: string) {
-    await this.assertProjectAccess(userId, projectId, PROJECT_READ_ROLES);
-
     const key = this.detailKey(userId, projectId);
 
     try {
       const cached = await this.redisService.getClient().get(key);
       if (cached) return JSON.parse(cached);
     } catch { /* fall through */ }
+
+    await this.assertProjectAccess(userId, projectId, PROJECT_READ_ROLES);
 
     const project = await this.prismaService.project.findFirst({
       where: { id: projectId },

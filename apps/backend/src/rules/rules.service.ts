@@ -8,11 +8,14 @@ import { RequestMetadata } from '../common/interfaces/request-metadata.interface
 import { GatewayCheckDto } from '../gateway/dto/gateway-check.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
+import { RedisService } from '../redis/redis.service';
 import { ResolvedRateLimitRule } from '../rate-limiter/interfaces/resolved-rate-limit-rule.interface';
 import { mapRuleAlgorithm } from '../rate-limiter/utils/rule-algorithm.util';
 import { CreateRuleDto } from './dto/create-rule.dto';
 import { SimulateRuleDto } from './dto/simulate-rule.dto';
 import { UpdateRuleDto } from './dto/update-rule.dto';
+
+const RULES_LIST_TTL = 60;
 
 @Injectable()
 export class RulesService {
@@ -21,7 +24,18 @@ export class RulesService {
     private readonly projectsService: ProjectsService,
     private readonly algorithmRegistryService: AlgorithmRegistryService,
     private readonly auditService: AuditService,
+    private readonly redisService: RedisService,
   ) {}
+
+  private rulesListKey(projectId: string) {
+    return `cache:rules:project:${projectId}`;
+  }
+
+  private async bustRulesCache(projectId: string) {
+    try {
+      await this.redisService.getClient().del(this.rulesListKey(projectId));
+    } catch { /* non-critical */ }
+  }
 
   async create(
     userId: string,
@@ -56,20 +70,33 @@ export class RulesService {
       request,
     });
 
+    await this.bustRulesCache(projectId);
     return rule;
   }
 
   async listByProject(userId: string, projectId: string) {
+    const key = this.rulesListKey(projectId);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
+
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
 
-    return this.prismaService.rateLimitRule.findMany({
+    const rules = await this.prismaService.rateLimitRule.findMany({
       where: { projectId },
       orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
     });
+
+    try {
+      await this.redisService.getClient().setex(key, RULES_LIST_TTL, JSON.stringify(rules));
+    } catch { /* non-critical */ }
+
+    return rules;
   }
 
   async update(
@@ -100,6 +127,7 @@ export class RulesService {
       request,
     });
 
+    await this.bustRulesCache(projectId);
     return rule;
   }
 
@@ -128,6 +156,7 @@ export class RulesService {
       request,
     });
 
+    await this.bustRulesCache(projectId);
     return {
       success: true,
     };
