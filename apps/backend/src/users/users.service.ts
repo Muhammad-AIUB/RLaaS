@@ -22,10 +22,25 @@ export class UsersService {
     return this.prismaService.user.create({ data });
   }
 
-  findByEmail(email: string): Promise<User | null> {
-    return this.prismaService.user.findUnique({
+  async findByEmail(email: string): Promise<User | null> {
+    const key = `cache:user:email:${email.toLowerCase()}`;
+
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached) as User;
+    } catch { /* fall through */ }
+
+    const user = await this.prismaService.user.findUnique({
       where: { email: email.toLowerCase() },
     });
+
+    if (user) {
+      try {
+        await this.redisService.getClient().setex(key, 60, JSON.stringify(user));
+      } catch { /* non-critical */ }
+    }
+
+    return user;
   }
 
   findById(id: string): Promise<User | null> {

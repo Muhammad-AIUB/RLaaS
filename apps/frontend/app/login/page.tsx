@@ -136,6 +136,7 @@ export default function LoginPage() {
                 type="email"
                 autoComplete="email"
                 placeholder="you@company.com"
+                defaultValue={DEMO_EMAIL}
                 required
               />
             </div>
@@ -144,7 +145,7 @@ export default function LoginPage() {
                 <label htmlFor="password" className="label !mb-0">
                   Password
                 </label>
-                <span className="text-xs text-slate-400">Forgot?</span>
+                <Link href="/forgot-password" className="text-xs text-slate-400 hover:text-slate-600">Forgot?</Link>
               </div>
               <div className="relative mt-1.5">
                 <input
@@ -154,6 +155,7 @@ export default function LoginPage() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="••••••••"
+                  defaultValue={DEMO_PASSWORD}
                   required
                 />
                 <button
@@ -197,6 +199,9 @@ export default function LoginPage() {
             >
               {pending ? 'Signing in…' : 'Continue as Guest'}
             </button>
+            <p className="text-center text-xs text-slate-400">
+              Guest: <span className="font-mono">{DEMO_EMAIL}</span> / <span className="font-mono">{DEMO_PASSWORD}</span>
+            </p>
           </form>
 
           <p className="mt-6 text-sm text-slate-500">
