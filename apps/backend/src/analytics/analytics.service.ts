@@ -28,32 +28,7 @@ export class AnalyticsService {
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
-    const where = this.buildWhere(projectId, query);
-
-    const [totalRequests, allowedRequests, blockedRequests] = await Promise.all([
-      this.prismaService.requestLog.count({ where }),
-      this.prismaService.requestLog.count({
-        where: {
-          ...where,
-          decision: RequestDecision.ALLOWED,
-        },
-      }),
-      this.prismaService.requestLog.count({
-        where: {
-          ...where,
-          decision: RequestDecision.BLOCKED,
-        },
-      }),
-    ]);
-
-    const blockRate = totalRequests === 0 ? 0 : (blockedRequests / totalRequests) * 100;
-
-    return {
-      totalRequests,
-      allowedRequests,
-      blockedRequests,
-      blockRate: Number(blockRate.toFixed(2)),
-    };
+    return this.queryOverview(projectId, query);
   }
 
   async getTopIps(userId: string, projectId: string, query: AnalyticsQueryDto) {
@@ -62,26 +37,7 @@ export class AnalyticsService {
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
-    const limit = query.limit ?? 5;
-
-    const grouped = await this.prismaService.requestLog.groupBy({
-      by: ['ipAddress'],
-      where: this.buildWhere(projectId, query),
-      _count: {
-        _all: true,
-      },
-      orderBy: {
-        _count: {
-          ipAddress: 'desc',
-        },
-      },
-      take: limit,
-    });
-
-    return grouped.map((item) => ({
-      ip: item.ipAddress,
-      requests: item._count._all,
-    }));
+    return this.queryTopIps(projectId, query);
   }
 
   async getTopEndpoints(userId: string, projectId: string, query: AnalyticsQueryDto) {
@@ -90,27 +46,7 @@ export class AnalyticsService {
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
-    const limit = query.limit ?? 5;
-
-    const grouped = await this.prismaService.requestLog.groupBy({
-      by: ['endpoint', 'method'],
-      where: this.buildWhere(projectId, query),
-      _count: {
-        _all: true,
-      },
-      orderBy: {
-        _count: {
-          endpoint: 'desc',
-        },
-      },
-      take: limit,
-    });
-
-    return grouped.map((item) => ({
-      endpoint: item.endpoint,
-      method: item.method,
-      requests: item._count._all,
-    }));
+    return this.queryTopEndpoints(projectId, query);
   }
 
   async getAlgorithmPerformance(
@@ -123,19 +59,67 @@ export class AnalyticsService {
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
+    return this.queryAlgorithmPerformance(projectId, query);
+  }
 
+  private async queryOverview(projectId: string, query: AnalyticsQueryDto) {
+    const where = this.buildWhere(projectId, query);
+    const grouped = await this.prismaService.requestLog.groupBy({
+      by: ['decision'],
+      where,
+      _count: { _all: true },
+    });
+
+    const allowedRequests =
+      grouped.find((g) => g.decision === RequestDecision.ALLOWED)?._count._all ?? 0;
+    const blockedRequests =
+      grouped.find((g) => g.decision === RequestDecision.BLOCKED)?._count._all ?? 0;
+    const totalRequests = allowedRequests + blockedRequests;
+    const blockRate = totalRequests === 0 ? 0 : (blockedRequests / totalRequests) * 100;
+
+    return {
+      totalRequests,
+      allowedRequests,
+      blockedRequests,
+      blockRate: Number(blockRate.toFixed(2)),
+    };
+  }
+
+  private async queryTopIps(projectId: string, query: AnalyticsQueryDto) {
+    const limit = query.limit ?? 5;
+    const grouped = await this.prismaService.requestLog.groupBy({
+      by: ['ipAddress'],
+      where: this.buildWhere(projectId, query),
+      _count: { _all: true },
+      orderBy: { _count: { ipAddress: 'desc' } },
+      take: limit,
+    });
+    return grouped.map((item) => ({ ip: item.ipAddress, requests: item._count._all }));
+  }
+
+  private async queryTopEndpoints(projectId: string, query: AnalyticsQueryDto) {
+    const limit = query.limit ?? 5;
+    const grouped = await this.prismaService.requestLog.groupBy({
+      by: ['endpoint', 'method'],
+      where: this.buildWhere(projectId, query),
+      _count: { _all: true },
+      orderBy: { _count: { endpoint: 'desc' } },
+      take: limit,
+    });
+    return grouped.map((item) => ({
+      endpoint: item.endpoint,
+      method: item.method,
+      requests: item._count._all,
+    }));
+  }
+
+  private async queryAlgorithmPerformance(projectId: string, query: AnalyticsQueryDto) {
     const grouped = await this.prismaService.requestLog.groupBy({
       by: ['algorithm'],
       where: this.buildWhere(projectId, query),
-      _count: {
-        _all: true,
-      },
-      _avg: {
-        retryAfter: true,
-        responseTimeMs: true,
-      },
+      _count: { _all: true },
+      _avg: { retryAfter: true, responseTimeMs: true },
     });
-
     return grouped.map((item) => ({
       algorithm: item.algorithm,
       requests: item._count._all,
@@ -145,18 +129,14 @@ export class AnalyticsService {
   }
 
   async getRecentLogs(userId: string, projectId: string, query: AnalyticsQueryDto) {
-    const startedAt = performance.now();
-    const accessStartedAt = performance.now();
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
-    const accessDurationMs = performance.now() - accessStartedAt;
     const limit = query.limit ?? 20;
-    const queryStartedAt = performance.now();
-    const logFetchStartedAt = performance.now();
 
+    const startedAt = performance.now();
     const logs = await this.prismaService.requestLog.findMany({
       where: this.buildWhere(projectId, query),
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -183,8 +163,6 @@ export class AnalyticsService {
         createdAt: true,
       },
     });
-    const logFetchDurationMs = performance.now() - logFetchStartedAt;
-
     const apiKeyIds = Array.from(
       new Set(
         logs
@@ -200,52 +178,19 @@ export class AnalyticsService {
       ),
     );
 
-    let apiKeyHydrationDurationMs = 0;
-    let ruleHydrationDurationMs = 0;
     const [apiKeys, rules] = await Promise.all([
-      (async () => {
-        const apiKeyHydrationStartedAt = performance.now();
-        const result =
-          apiKeyIds.length > 0
-            ? await this.prismaService.apiKey.findMany({
-                where: {
-                  id: {
-                    in: apiKeyIds,
-                  },
-                },
-                select: {
-                  id: true,
-                  name: true,
-                  keyPrefix: true,
-                  status: true,
-                },
-              })
-            : [];
-        apiKeyHydrationDurationMs =
-          performance.now() - apiKeyHydrationStartedAt;
-        return result;
-      })(),
-      (async () => {
-        const ruleHydrationStartedAt = performance.now();
-        const result =
-          ruleIds.length > 0
-            ? await this.prismaService.rateLimitRule.findMany({
-                where: {
-                  id: {
-                    in: ruleIds,
-                  },
-                },
-                select: {
-                  id: true,
-                  name: true,
-                  scope: true,
-                  priority: true,
-                },
-              })
-            : [];
-        ruleHydrationDurationMs = performance.now() - ruleHydrationStartedAt;
-        return result;
-      })(),
+      apiKeyIds.length > 0
+        ? this.prismaService.apiKey.findMany({
+            where: { id: { in: apiKeyIds } },
+            select: { id: true, name: true, keyPrefix: true, status: true },
+          })
+        : [],
+      ruleIds.length > 0
+        ? this.prismaService.rateLimitRule.findMany({
+            where: { id: { in: ruleIds } },
+            select: { id: true, name: true, scope: true, priority: true },
+          })
+        : [],
     ]);
 
     const apiKeyById = new Map<
@@ -273,21 +218,8 @@ export class AnalyticsService {
         priority: rule.priority,
       });
     }
-    const queryDurationMs = performance.now() - queryStartedAt;
-    const totalDurationMs = performance.now() - startedAt;
-
-    this.logger.log(
-      [
-        'analytics.logs',
-        `projectId=${projectId}`,
-        `limit=${limit}`,
-        `accessMs=${accessDurationMs.toFixed(2)}`,
-        `logFetchMs=${logFetchDurationMs.toFixed(2)}`,
-        `apiKeyHydrationMs=${apiKeyHydrationDurationMs.toFixed(2)}`,
-        `ruleHydrationMs=${ruleHydrationDurationMs.toFixed(2)}`,
-        `queryMs=${queryDurationMs.toFixed(2)}`,
-        `totalMs=${totalDurationMs.toFixed(2)}`,
-      ].join(' '),
+    this.logger.debug(
+      `analytics.logs projectId=${projectId} limit=${limit} totalMs=${(performance.now() - startedAt).toFixed(0)}`,
     );
 
     return logs.map((log) => {
@@ -331,10 +263,10 @@ export class AnalyticsService {
     };
 
     const [overview, topIps, topEndpoints, algorithmPerformance] = await Promise.all([
-      this.getOverview(userId, projectId, query),
-      this.getTopIps(userId, projectId, query),
-      this.getTopEndpoints(userId, projectId, query),
-      this.getAlgorithmPerformance(userId, projectId, query),
+      this.queryOverview(projectId, query),
+      this.queryTopIps(projectId, query),
+      this.queryTopEndpoints(projectId, query),
+      this.queryAlgorithmPerformance(projectId, query),
     ]);
 
     return this.prismaService.analyticsSnapshot.upsert({

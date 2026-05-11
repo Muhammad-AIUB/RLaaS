@@ -125,11 +125,13 @@ export class ApiKeysService {
     const hashedKey = this.hashApiKey(rawKey);
 
     return this.prismaService.apiKey.findUnique({
-      where: {
-        hashedKey,
-      },
-      include: {
-        project: true,
+      where: { hashedKey },
+      select: {
+        id: true,
+        projectId: true,
+        keyPrefix: true,
+        status: true,
+        expiresAt: true,
       },
     });
   }
