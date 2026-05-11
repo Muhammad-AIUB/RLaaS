@@ -41,7 +41,7 @@ export class RulesService {
       },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'rule.created',
       actorId: userId,
       projectId,
@@ -90,7 +90,7 @@ export class RulesService {
       data: dto,
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'rule.updated',
       actorId: userId,
       projectId,
@@ -119,7 +119,7 @@ export class RulesService {
       where: { id: ruleId },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'rule.deleted',
       actorId: userId,
       projectId,
@@ -187,7 +187,7 @@ export class RulesService {
       });
     }
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'rule.simulated',
       actorId: userId,
       projectId,

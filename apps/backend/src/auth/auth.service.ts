@@ -32,7 +32,7 @@ export class AuthService {
       tier: dto.tier ?? UserTier.FREE,
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'auth.registered',
       actorId: user.id,
       resourceType: 'user',
@@ -59,7 +59,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'auth.logged_in',
       actorId: user.id,
       resourceType: 'user',

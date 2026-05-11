@@ -73,7 +73,7 @@ export class ProjectsService {
       include: this.buildProjectInclude(userId),
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'project.created',
       actorId: userId,
       projectId: project.id,
@@ -154,7 +154,7 @@ export class ProjectsService {
       include: this.buildProjectInclude(userId),
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'project.updated',
       actorId: userId,
       projectId,
@@ -175,7 +175,7 @@ export class ProjectsService {
       where: { id: projectId },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'project.deleted',
       actorId: userId,
       projectId,
@@ -248,7 +248,7 @@ export class ProjectsService {
       },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'project.member_added',
       actorId,
       projectId,
@@ -314,7 +314,7 @@ export class ProjectsService {
       },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'project.member_role_updated',
       actorId,
       projectId,
@@ -357,7 +357,7 @@ export class ProjectsService {
       where: { id: memberId },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'project.member_removed',
       actorId,
       projectId,

@@ -56,7 +56,7 @@ export class WebhooksService {
       },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'webhook.created',
       actorId: userId,
       projectId,
@@ -95,7 +95,7 @@ export class WebhooksService {
       where: { id: webhookId },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'webhook.deleted',
       actorId: userId,
       projectId,

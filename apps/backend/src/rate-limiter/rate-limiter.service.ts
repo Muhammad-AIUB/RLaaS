@@ -107,7 +107,7 @@ export class RateLimiterService {
       scope: rule.scope,
     };
 
-    await this.persistRequestOutcome({
+    void this.persistRequestOutcome({
       apiKeyId: apiKey.id,
       projectId: apiKey.projectId,
       dto: proxyDto,
@@ -192,7 +192,7 @@ export class RateLimiterService {
       ...(idempotencyCacheKey ? { idempotencyStatus: 'created' } : {}),
     };
 
-    await this.persistRequestOutcome({
+    void this.persistRequestOutcome({
       apiKeyId: apiKey.id,
       projectId: apiKey.projectId,
       dto: { ...dto, method: normalizedMethod, userTier: normalizedTier },
@@ -339,35 +339,34 @@ export class RateLimiterService {
       response,
     } = params;
 
-    await this.prismaService.requestLog.create({
-      data: {
-        projectId,
-        apiKeyId,
-        ruleId: rule.id,
-        idempotencyKey: dto.idempotencyKey,
-        ipAddress: dto.ip,
-        endpoint: dto.endpoint,
-        method: dto.method as HttpMethod,
-        userTier: this.toPrismaUserTier(dto.userTier),
-        decision: result.allowed ? RequestDecision.ALLOWED : RequestDecision.BLOCKED,
-        reason: response.reason,
-        algorithm: this.toPrismaRuleAlgorithm(rule.algorithm),
-        limit: response.limit,
-        remaining: response.remaining,
-        retryAfter: response.retryAfter,
-        metadata: {
-          scope: rule.scope,
-          ruleName: rule.name,
+    await Promise.all([
+      this.prismaService.requestLog.create({
+        data: {
+          projectId,
+          apiKeyId,
+          ruleId: rule.id,
+          idempotencyKey: dto.idempotencyKey,
+          ipAddress: dto.ip,
+          endpoint: dto.endpoint,
+          method: dto.method as HttpMethod,
+          userTier: this.toPrismaUserTier(dto.userTier),
+          decision: result.allowed ? RequestDecision.ALLOWED : RequestDecision.BLOCKED,
+          reason: response.reason,
+          algorithm: this.toPrismaRuleAlgorithm(rule.algorithm),
+          limit: response.limit,
+          remaining: response.remaining,
+          retryAfter: response.retryAfter,
+          metadata: {
+            scope: rule.scope,
+            ruleName: rule.name,
+          },
         },
-      },
-    });
-
-    await this.prismaService.apiKey.update({
-      where: { id: apiKeyId },
-      data: {
-        lastUsedAt: new Date(),
-      },
-    });
+      }),
+      this.prismaService.apiKey.update({
+        where: { id: apiKeyId },
+        data: { lastUsedAt: new Date() },
+      }),
+    ]);
   }
 
   private resolveDefaultAlgorithm(): RateLimitAlgorithm {

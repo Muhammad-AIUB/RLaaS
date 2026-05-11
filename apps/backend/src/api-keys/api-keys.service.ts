@@ -44,7 +44,7 @@ export class ApiKeysService {
       },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'api_key.created',
       actorId: userId,
       projectId,
@@ -106,7 +106,7 @@ export class ApiKeysService {
       },
     });
 
-    await this.auditService.log({
+    void this.auditService.log({
       action: 'api_key.revoked',
       actorId: userId,
       projectId,
