@@ -28,7 +28,7 @@ async function main() {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, 8);
   const fullName = process.env.SEED_DEMO_FULL_NAME || 'Guest Demo';
 
   const user = await prisma.user.upsert({

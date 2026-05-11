@@ -24,7 +24,7 @@ export class AuthService {
       throw new ConflictException('Email is already registered');
     }
 
-    const passwordHash = await hash(dto.password, 10);
+    const passwordHash = await hash(dto.password, 8);
     const user = await this.usersService.create({
       email: dto.email,
       passwordHash,
