@@ -6,6 +6,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.getHttpServer().keepAliveTimeout = 65_000;
+  app.getHttpServer().headersTimeout = 66_000;
 
   app.setGlobalPrefix('api');
   app.enableVersioning({

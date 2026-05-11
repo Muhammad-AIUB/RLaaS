@@ -31,9 +31,12 @@ async function forward(request: NextRequest, context: ProxyContext) {
       Authorization: `Bearer ${token}`,
       'Content-Type':
         request.headers.get('content-type') ?? 'application/json',
+      Connection: 'keep-alive',
     },
     body,
     cache: 'no-store',
+    // @ts-expect-error — Node.js fetch supports keepAlive but TS types don't expose it
+    keepalive: true,
   });
 
   const text = await response.text();
