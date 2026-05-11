@@ -39,7 +39,9 @@ async function main() {
   console.log(`Demo user upserted: ${email}`);
 
   // Upsert demo project
-  let project = await prisma.project.findFirst({ where: { name: 'Demo API Project', members: { some: { userId: user.id } } } });
+  let project = await prisma.project.findFirst({
+    where: { name: 'Demo API Project', members: { some: { userId: user.id } } },
+  });
   if (!project) {
     project = await prisma.project.create({
       data: {
@@ -60,8 +62,8 @@ async function main() {
           projectId: project.id,
           name: 'Global API Limit',
           scope: RuleScope.GLOBAL,
-          algorithm: RuleAlgorithm.sliding_window,
-          limitRequests: 1000,
+          algorithm: RuleAlgorithm.SLIDING_WINDOW_COUNTER,
+          limit: 1000,
           windowSeconds: 60,
           isActive: true,
           priority: 1,
@@ -70,10 +72,10 @@ async function main() {
           projectId: project.id,
           name: 'Auth Endpoint Guard',
           scope: RuleScope.ENDPOINT,
-          algorithm: RuleAlgorithm.fixed_window,
-          pathPattern: '/api/auth/*',
-          httpMethod: HttpMethod.POST,
-          limitRequests: 10,
+          algorithm: RuleAlgorithm.FIXED_WINDOW,
+          endpointPattern: '/api/auth/*',
+          method: HttpMethod.POST,
+          limit: 10,
           windowSeconds: 60,
           isActive: true,
           priority: 2,
@@ -82,9 +84,9 @@ async function main() {
           projectId: project.id,
           name: 'Free Tier User Cap',
           scope: RuleScope.USER_TIER,
-          algorithm: RuleAlgorithm.token_bucket,
+          algorithm: RuleAlgorithm.TOKEN_BUCKET,
           userTier: UserTier.FREE,
-          limitRequests: 100,
+          limit: 100,
           windowSeconds: 3600,
           isActive: true,
           priority: 3,
@@ -93,8 +95,8 @@ async function main() {
           projectId: project.id,
           name: 'IP-based DDoS Shield',
           scope: RuleScope.IP,
-          algorithm: RuleAlgorithm.fixed_window,
-          limitRequests: 200,
+          algorithm: RuleAlgorithm.FIXED_WINDOW,
+          limit: 200,
           windowSeconds: 10,
           isActive: false,
           priority: 4,
@@ -128,18 +130,21 @@ async function main() {
   if (logCount === 0) {
     const now = Date.now();
     const logs = [];
-    const paths = ['/api/users', '/api/products', '/api/orders', '/api/auth/login', '/api/search'];
+    const endpoints = ['/api/users', '/api/products', '/api/orders', '/api/auth/login', '/api/search'];
     const methods = [HttpMethod.GET, HttpMethod.POST, HttpMethod.GET, HttpMethod.GET, HttpMethod.GET];
     for (let i = 0; i < 120; i++) {
       const blocked = i % 7 === 0;
-      const ts = new Date(now - (120 - i) * 30_000); // one every 30s, spread over last hour
+      const ts = new Date(now - (120 - i) * 30_000);
       logs.push({
         projectId: project.id,
         apiKeyId: null,
         ipAddress: `10.0.${Math.floor(i / 25)}.${(i % 25) + 1}`,
-        path: paths[i % paths.length],
-        httpMethod: methods[i % methods.length],
+        endpoint: endpoints[i % endpoints.length],
+        method: methods[i % methods.length],
         decision: blocked ? RequestDecision.BLOCKED : RequestDecision.ALLOWED,
+        algorithm: RuleAlgorithm.SLIDING_WINDOW_COUNTER,
+        limit: 1000,
+        remaining: blocked ? 0 : 1000 - (i % 50),
         responseTimeMs: blocked ? null : 20 + Math.floor(Math.random() * 80),
         createdAt: ts,
         metadata: {},
