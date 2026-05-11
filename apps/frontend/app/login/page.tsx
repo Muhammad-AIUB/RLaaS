@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { ErrorState } from '@/components/feedback';
 import { LogoMark } from '@/components/icons';
 
@@ -20,6 +20,11 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    // Pre-warm the backend so it's ready when the user submits
+    fetch('/api/ping').catch(() => {});
+  }, []);
 
   async function submitCredentials(email: string, password: string) {
     setError('');
