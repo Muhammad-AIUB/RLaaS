@@ -20,12 +20,13 @@ async function main() {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
+  const passwordHash = await bcrypt.hash(password, 10);
+  const fullName = process.env.SEED_DEMO_FULL_NAME || 'Guest Demo';
   await prisma.user.create({
     data: {
       email,
       passwordHash,
-      fullName: 'Guest Demo',
+      fullName,
       tier: UserTier.FREE,
       isActive: true,
     },
