@@ -35,7 +35,6 @@ async function forward(request: NextRequest, context: ProxyContext) {
     },
     body,
     cache: 'no-store',
-    // @ts-expect-error — Node.js fetch supports keepAlive but TS types don't expose it
     keepalive: true,
   });
 
