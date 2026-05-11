@@ -42,4 +42,4 @@ jobs:
           pnpm --filter @rlaas/frontend build
 
       - name: Run backend tests
-        run: pnpm --filter @rlaas/backend test -- --runInBand
+        run: pnpm --filter @rlaas/backend test:unit
