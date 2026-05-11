@@ -14,16 +14,13 @@ async function main() {
     return;
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    console.log(`Demo user already exists: ${email}`);
-    return;
-  }
-
   const passwordHash = await bcrypt.hash(password, 10);
   const fullName = process.env.SEED_DEMO_FULL_NAME || 'Guest Demo';
-  await prisma.user.create({
-    data: {
+
+  await prisma.user.upsert({
+    where: { email },
+    update: { passwordHash, fullName },
+    create: {
       email,
       passwordHash,
       fullName,
@@ -32,7 +29,7 @@ async function main() {
     },
   });
 
-  console.log(`Demo user created: ${email}`);
+  console.log(`Demo user upserted: ${email}`);
 }
 
 main()

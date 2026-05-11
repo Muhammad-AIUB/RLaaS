@@ -2,11 +2,11 @@ services:
   - type: web
     name: rlaas-backend
     runtime: node
-    region: oregon
+    region: singapore
     plan: free
     rootDir: apps/backend
     buildCommand: npm i -g pnpm && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build
-    startCommand: pnpm prisma migrate deploy && node dist/main
+    startCommand: pnpm prisma migrate deploy && pnpm prisma db seed && node dist/main
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
