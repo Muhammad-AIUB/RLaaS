@@ -7,6 +7,7 @@ import { ProjectRole } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { RequestMetadata } from '../common/interfaces/request-metadata.interface';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { UsersService } from '../users/users.service';
 import { ProjectAccessService } from './project-access.service';
 import {
@@ -20,6 +21,9 @@ import { UpdateProjectMemberRoleDto } from './dto/update-project-member-role.dto
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { toSlug } from '../common/utils/slug.util';
 
+const PROJECT_LIST_TTL = 30;
+const PROJECT_DETAIL_TTL = 30;
+
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -27,7 +31,26 @@ export class ProjectsService {
     private readonly auditService: AuditService,
     private readonly usersService: UsersService,
     private readonly projectAccessService: ProjectAccessService,
+    private readonly redisService: RedisService,
   ) {}
+
+  private listKey(userId: string) {
+    return `cache:projects:user:${userId}`;
+  }
+
+  private detailKey(userId: string, projectId: string) {
+    return `cache:project:${projectId}:user:${userId}`;
+  }
+
+  private async bustProjectCache(userId: string, projectId?: string) {
+    try {
+      const keys = [this.listKey(userId)];
+      if (projectId) keys.push(this.detailKey(userId, projectId));
+      await this.redisService.getClient().del(...keys);
+    } catch {
+      // Non-critical
+    }
+  }
 
   async create(userId: string, dto: CreateProjectDto, request?: RequestMetadata) {
     const slug = await this.generateUniqueSlug(dto.name);
@@ -56,56 +79,64 @@ export class ProjectsService {
       projectId: project.id,
       resourceType: 'project',
       resourceId: project.id,
-      metadata: {
-        name: project.name,
-        environment: project.environment,
-      },
+      metadata: { name: project.name, environment: project.environment },
       request,
     });
 
+    await this.bustProjectCache(userId);
     return this.attachCurrentRole(project);
   }
 
   async listByUser(userId: string) {
+    const key = this.listKey(userId);
+
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
+
     const projects = await this.prismaService.project.findMany({
-      where: {
-        members: {
-          some: { userId },
-        },
-      },
+      where: { members: { some: { userId } } },
       orderBy: { createdAt: 'desc' },
       include: {
-        _count: {
-          select: {
-            apiKeys: true,
-            rules: true,
-          },
-        },
-        members: {
-          where: { userId },
-          select: { id: true, role: true },
-        },
+        _count: { select: { apiKeys: true, rules: true } },
+        members: { where: { userId }, select: { id: true, role: true } },
       },
     });
 
-    return projects.map((project) => this.attachCurrentRole(project));
+    const result = projects.map((project) => this.attachCurrentRole(project));
+
+    try {
+      await this.redisService.getClient().setex(key, PROJECT_LIST_TTL, JSON.stringify(result));
+    } catch { /* Non-critical */ }
+
+    return result;
   }
 
   async getById(userId: string, projectId: string) {
     await this.assertProjectAccess(userId, projectId, PROJECT_READ_ROLES);
 
+    const key = this.detailKey(userId, projectId);
+
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
+
     const project = await this.prismaService.project.findFirst({
-      where: {
-        id: projectId,
-      },
+      where: { id: projectId },
       include: this.buildProjectInclude(userId),
     });
 
-    if (!project) {
-      throw new NotFoundException('Project not found');
-    }
+    if (!project) throw new NotFoundException('Project not found');
 
-    return this.attachCurrentRole(project);
+    const result = this.attachCurrentRole(project);
+
+    try {
+      await this.redisService.getClient().setex(key, PROJECT_DETAIL_TTL, JSON.stringify(result));
+    } catch { /* Non-critical */ }
+
+    return result;
   }
 
   async update(
@@ -133,6 +164,7 @@ export class ProjectsService {
       request,
     });
 
+    await this.bustProjectCache(userId, projectId);
     return this.attachCurrentRole(project);
   }
 
@@ -152,9 +184,8 @@ export class ProjectsService {
       request,
     });
 
-    return {
-      success: true,
-    };
+    await this.bustProjectCache(userId, projectId);
+    return { success: true };
   }
 
   async listMembers(userId: string, projectId: string) {

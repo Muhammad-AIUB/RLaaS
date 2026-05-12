@@ -50,10 +50,10 @@ describe('AnalyticsService', () => {
   });
 
   it('computes overview totals and block rate', async () => {
-    countMock
-      .mockResolvedValueOnce(200)
-      .mockResolvedValueOnce(150)
-      .mockResolvedValueOnce(50);
+    groupByMock.mockResolvedValueOnce([
+      { decision: 'ALLOWED', _count: { _all: 150 } },
+      { decision: 'BLOCKED', _count: { _all: 50 } },
+    ]);
 
     await expect(
       service.getOverview('user-1', 'project-1', {}),
@@ -66,11 +66,11 @@ describe('AnalyticsService', () => {
   });
 
   it('builds a snapshot from aggregated analytics inputs', async () => {
-    countMock
-      .mockResolvedValueOnce(100)
-      .mockResolvedValueOnce(80)
-      .mockResolvedValueOnce(20);
     groupByMock
+      .mockResolvedValueOnce([
+        { decision: 'ALLOWED', _count: { _all: 80 } },
+        { decision: 'BLOCKED', _count: { _all: 20 } },
+      ])
       .mockResolvedValueOnce([
         { ipAddress: '203.0.113.10', _count: { _all: 12 } },
       ])
