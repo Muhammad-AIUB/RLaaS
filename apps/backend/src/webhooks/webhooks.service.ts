@@ -113,7 +113,7 @@ export class WebhooksService {
       projectId,
       resourceType: 'webhook_endpoint',
       resourceId: webhookId,
-      metadata: { changes: dto },
+      metadata: { changes: { ...dto } } as any,
       request,
     });
 
