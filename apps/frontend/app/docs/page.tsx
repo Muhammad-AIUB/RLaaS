@@ -145,7 +145,14 @@ export default function DocsPage() {
 
         {/* Footer links */}
         <div className="flex flex-wrap items-center justify-between gap-4 text-sm text-slate-500">
-          <span>Built by <strong className="text-slate-700">Muhammad Jubayer</strong></span>
+          <a
+            href="https://www.mjubayer.dev/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-slate-700 hover:text-brand-700"
+          >
+            Built by Muhammad Jubayer ↗
+          </a>
           <div className="flex gap-4">
             <Link href="/login" className="font-medium text-brand-700 hover:text-brand-800">Sign in</Link>
             <a
