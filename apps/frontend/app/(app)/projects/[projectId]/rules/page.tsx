@@ -31,6 +31,10 @@ export default function RulesPage() {
   );
   const [pending, setPending] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingRule, setEditingRule] = useState<RuleRecord | null>(null);
+  const [editPending, setEditPending] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,12 +65,47 @@ export default function RulesPage() {
       await rules.reload();
     } catch (caughtError) {
       rules.setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'Failed to create rule',
+        caughtError instanceof Error ? caughtError.message : 'Failed to create rule',
       );
     } finally {
       setPending(false);
+    }
+  }
+
+  async function handleToggle(rule: RuleRecord) {
+    setTogglingId(rule.id);
+    try {
+      await rulesApi.update(projectId, rule.id, { isActive: !rule.isActive });
+      await rules.reload();
+    } catch {
+      rules.setError('Failed to toggle rule');
+    } finally {
+      setTogglingId(null);
+    }
+  }
+
+  async function handleEdit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingRule) return;
+    setEditPending(true);
+    setEditError('');
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    try {
+      await rulesApi.update(projectId, editingRule.id, {
+        name: String(formData.get('name') ?? ''),
+        description: readFormString(formData, 'description'),
+        priority: readFormNumber(formData, 'priority') ?? editingRule.priority,
+        limit: readFormNumber(formData, 'limit') ?? editingRule.limit,
+        windowSeconds: readFormNumber(formData, 'windowSeconds') ?? editingRule.windowSeconds,
+        burstCapacity: readFormNumber(formData, 'burstCapacity'),
+      });
+      setEditingRule(null);
+      await rules.reload();
+    } catch {
+      setEditError('Failed to update rule. Please try again.');
+    } finally {
+      setEditPending(false);
     }
   }
 
@@ -76,9 +115,7 @@ export default function RulesPage() {
       await rules.reload();
     } catch (caughtError) {
       rules.setError(
-        caughtError instanceof Error
-          ? caughtError.message
-          : 'Failed to delete rule',
+        caughtError instanceof Error ? caughtError.message : 'Failed to delete rule',
       );
     }
   }
@@ -117,22 +154,11 @@ export default function RulesPage() {
           >
             <div className="sm:col-span-2">
               <label className="label">Name</label>
-              <input
-                className="field"
-                name="name"
-                required
-                placeholder="Throttle public endpoints"
-              />
+              <input className="field" name="name" required placeholder="Throttle public endpoints" />
             </div>
             <div>
               <label className="label">Priority</label>
-              <input
-                className="field"
-                name="priority"
-                type="number"
-                defaultValue="100"
-                required
-              />
+              <input className="field" name="priority" type="number" defaultValue="100" required />
             </div>
             <div>
               <label className="label">Scope</label>
@@ -146,34 +172,20 @@ export default function RulesPage() {
             </div>
             <div>
               <label className="label">Algorithm</label>
-              <select
-                className="field"
-                name="algorithm"
-                defaultValue="FIXED_WINDOW"
-              >
+              <select className="field" name="algorithm" defaultValue="FIXED_WINDOW">
                 <option value="FIXED_WINDOW">Fixed Window</option>
                 <option value="SLIDING_WINDOW_LOG">Sliding Window Log</option>
-                <option value="SLIDING_WINDOW_COUNTER">
-                  Sliding Window Counter
-                </option>
+                <option value="SLIDING_WINDOW_COUNTER">Sliding Window Counter</option>
                 <option value="TOKEN_BUCKET">Token Bucket</option>
               </select>
             </div>
             <div>
               <label className="label">Target value</label>
-              <input
-                className="field"
-                name="targetValue"
-                placeholder="e.g. 1.2.3.4"
-              />
+              <input className="field" name="targetValue" placeholder="e.g. 1.2.3.4" />
             </div>
             <div>
               <label className="label">Endpoint pattern</label>
-              <input
-                className="field"
-                name="endpointPattern"
-                placeholder="/api/products*"
-              />
+              <input className="field" name="endpointPattern" placeholder="/api/products*" />
             </div>
             <div>
               <label className="label">Method</label>
@@ -198,50 +210,25 @@ export default function RulesPage() {
             </div>
             <div>
               <label className="label">Limit</label>
-              <input
-                className="field"
-                name="limit"
-                type="number"
-                defaultValue="100"
-                required
-              />
+              <input className="field" name="limit" type="number" defaultValue="100" required />
             </div>
             <div>
               <label className="label">Window (s)</label>
-              <input
-                className="field"
-                name="windowSeconds"
-                type="number"
-                defaultValue="60"
-                required
-              />
+              <input className="field" name="windowSeconds" type="number" defaultValue="60" required />
             </div>
             <div>
               <label className="label">Burst capacity</label>
-              <input
-                className="field"
-                name="burstCapacity"
-                type="number"
-                placeholder="optional"
-              />
+              <input className="field" name="burstCapacity" type="number" placeholder="optional" />
             </div>
             <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4">
               <label className="label">Description</label>
-              <input
-                className="field"
-                name="description"
-                placeholder="Optional description"
-              />
+              <input className="field" name="description" placeholder="Optional description" />
             </div>
             <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3 xl:col-span-4">
               <button type="submit" className="btn-primary" disabled={pending}>
                 {pending ? 'Creating…' : 'Create rule'}
               </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setShowForm(false)}
-              >
+              <button type="button" className="btn-secondary" onClick={() => setShowForm(false)}>
                 Cancel
               </button>
             </div>
@@ -250,9 +237,7 @@ export default function RulesPage() {
       ) : null}
 
       {rules.error ? (
-        <div className="mb-6">
-          <ErrorState message={rules.error} />
-        </div>
+        <div className="mb-6"><ErrorState message={rules.error} /></div>
       ) : null}
 
       {rules.loading ? (
@@ -268,42 +253,58 @@ export default function RulesPage() {
           {list.map((rule) => (
             <Panel key={rule.id}>
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold text-slate-900">
-                      {rule.name}
-                    </h2>
+                    <h2 className="text-base font-semibold text-slate-900">{rule.name}</h2>
                     <span className="badge-brand">{rule.scope}</span>
                     <span className="badge-neutral">{rule.algorithm}</span>
+                    <span className={rule.isActive ? 'badge-success' : 'badge-warning'}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${rule.isActive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                      {rule.isActive ? 'Active' : 'Inactive'}
+                    </span>
                   </div>
-                  <p className="mt-2 text-sm text-slate-600">
-                    {rule.description || 'No description.'}
-                  </p>
+                  <p className="mt-2 text-sm text-slate-600">{rule.description || 'No description.'}</p>
                   <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
                     <div>
                       <dt className="text-slate-500">Priority</dt>
-                      <dd className="font-medium text-slate-800">
-                        {rule.priority}
-                      </dd>
+                      <dd className="font-medium text-slate-800">{rule.priority}</dd>
                     </div>
                     <div>
                       <dt className="text-slate-500">Limit</dt>
-                      <dd className="font-medium text-slate-800">
-                        {rule.limit}
-                      </dd>
+                      <dd className="font-medium text-slate-800">{rule.limit}</dd>
                     </div>
                     <div>
                       <dt className="text-slate-500">Window</dt>
-                      <dd className="font-medium text-slate-800">
-                        {rule.windowSeconds}s
-                      </dd>
+                      <dd className="font-medium text-slate-800">{rule.windowSeconds}s</dd>
                     </div>
                   </dl>
                 </div>
-                <div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  {/* Toggle */}
                   <button
                     type="button"
-                    className="btn-danger btn-sm"
+                    onClick={() => handleToggle(rule)}
+                    disabled={togglingId === rule.id}
+                    className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                      rule.isActive
+                        ? 'border-amber-200 bg-white text-amber-600 hover:bg-amber-50'
+                        : 'border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50'
+                    }`}
+                  >
+                    {togglingId === rule.id ? '…' : rule.isActive ? 'Disable' : 'Enable'}
+                  </button>
+                  {/* Edit */}
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => { setEditingRule(rule); setEditError(''); }}
+                  >
+                    Edit
+                  </button>
+                  {/* Delete */}
+                  <button
+                    type="button"
+                    className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition"
                     onClick={() => remove(rule.id)}
                   >
                     Delete
@@ -312,6 +313,50 @@ export default function RulesPage() {
               </div>
             </Panel>
           ))}
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingRule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Edit Rule</h2>
+            <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={handleEdit}>
+              <div className="sm:col-span-2">
+                <label className="label">Name</label>
+                <input className="field" name="name" defaultValue={editingRule.name} required />
+              </div>
+              <div>
+                <label className="label">Priority</label>
+                <input className="field" name="priority" type="number" defaultValue={editingRule.priority} required />
+              </div>
+              <div>
+                <label className="label">Limit</label>
+                <input className="field" name="limit" type="number" defaultValue={editingRule.limit} required />
+              </div>
+              <div>
+                <label className="label">Window (s)</label>
+                <input className="field" name="windowSeconds" type="number" defaultValue={editingRule.windowSeconds} required />
+              </div>
+              <div>
+                <label className="label">Burst capacity</label>
+                <input className="field" name="burstCapacity" type="number" defaultValue={editingRule.burstCapacity ?? ''} placeholder="optional" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">Description</label>
+                <input className="field" name="description" defaultValue={editingRule.description ?? ''} placeholder="Optional" />
+              </div>
+              {editError && <p className="sm:col-span-2 text-sm text-red-600">{editError}</p>}
+              <div className="flex gap-2 sm:col-span-2">
+                <button type="submit" className="btn-primary" disabled={editPending}>
+                  {editPending ? 'Saving…' : 'Save changes'}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => setEditingRule(null)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </>

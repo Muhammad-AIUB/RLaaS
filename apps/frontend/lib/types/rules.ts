@@ -30,6 +30,16 @@ export interface RuleRecord {
   updatedAt: string;
 }
 
+export interface UpdateRuleInput {
+  name?: string;
+  description?: string;
+  priority?: number;
+  limit?: number;
+  windowSeconds?: number;
+  isActive?: boolean;
+  burstCapacity?: number;
+}
+
 export interface CreateRuleInput {
   name: string;
   description?: string;
