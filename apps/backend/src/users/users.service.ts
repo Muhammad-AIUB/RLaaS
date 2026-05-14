@@ -71,6 +71,18 @@ export class UsersService {
     return profile;
   }
 
+  async updatePassword(email: string, passwordHash: string): Promise<void> {
+    await this.prismaService.user.update({
+      where: { email: email.toLowerCase() },
+      data: { passwordHash },
+    });
+    // Invalidate cached user
+    const key = `cache:user:email:${email.toLowerCase()}`;
+    try {
+      await this.redisService.getClient().del(key);
+    } catch { /* non-critical */ }
+  }
+
   toProfile(user: Pick<User, 'id' | 'email' | 'fullName' | 'tier' | 'createdAt' | 'updatedAt'>): AuthUserProfile {
     return {
       id: user.id,
