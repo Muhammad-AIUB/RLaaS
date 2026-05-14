@@ -97,7 +97,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
             Browse rule templates and best practices.
           </p>
           <a
-            href="#"
+            href="/docs"
             className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800"
           >
             View docs
