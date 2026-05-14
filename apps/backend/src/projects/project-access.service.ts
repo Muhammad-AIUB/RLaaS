@@ -7,6 +7,9 @@ import {
 } from '@nestjs/common';
 import { ProjectRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
+
+const MEMBERSHIP_TTL = 120; // 2 minutes
 
 @Injectable()
 export class ProjectAccessService {
@@ -16,32 +19,20 @@ export class ProjectAccessService {
     Promise<{ role: ProjectRole } | null>
   >();
 
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly redisService: RedisService,
+  ) {}
 
   async assertAccess(
     userId: string,
     projectId: string,
     allowedRoles: readonly ProjectRole[],
   ) {
-    const accessCheckStartNs = process.hrtime.bigint();
-    const userLookupStartNs = process.hrtime.bigint();
-    const normalizedUserId = userId;
-    const userLookupMs = Number(process.hrtime.bigint() - userLookupStartNs) / 1_000_000;
-
-    const memberLookupStartNs = process.hrtime.bigint();
-    const membershipLookupKey = `${projectId}:${normalizedUserId}`;
-    const sharedLookup =
-      this.membershipLookupInFlight.has(membershipLookupKey);
     const membership = await this.getMembership(
-      membershipLookupKey,
+      `${projectId}:${userId}`,
       projectId,
-      normalizedUserId,
-    );
-    const memberLookupMs = Number(process.hrtime.bigint() - memberLookupStartNs) / 1_000_000;
-    const totalAccessCheckMs = Number(process.hrtime.bigint() - accessCheckStartNs) / 1_000_000;
-
-    this.logger.debug(
-      `Project access check timings userLookupMs=${userLookupMs.toFixed(2)} projectMemberLookupMs=${memberLookupMs.toFixed(2)} totalMs=${totalAccessCheckMs.toFixed(2)} sharedLookup=${sharedLookup} projectId=${projectId} allowedRoles=${allowedRoles.join(',')}`,
+      userId,
     );
 
     if (!membership) {
@@ -55,6 +46,12 @@ export class ProjectAccessService {
     return membership;
   }
 
+  async bustMembershipCache(projectId: string, userId: string) {
+    try {
+      await this.redisService.getClient().del(this.membershipCacheKey(projectId, userId));
+    } catch { /* non-critical */ }
+  }
+
   async ensureMemberIsNotOwner(projectId: string, memberUserId: string) {
     const project = await this.prismaService.project.findUnique({
       where: { id: projectId },
@@ -66,11 +63,23 @@ export class ProjectAccessService {
     }
   }
 
+  private membershipCacheKey(projectId: string, userId: string) {
+    return `cache:membership:${projectId}:${userId}`;
+  }
+
   private async getMembership(
     key: string,
     projectId: string,
     userId: string,
   ): Promise<{ role: ProjectRole } | null> {
+    // 1. Redis cache
+    try {
+      const cacheKey = this.membershipCacheKey(projectId, userId);
+      const cached = await this.redisService.getClient().get(cacheKey);
+      if (cached) return JSON.parse(cached) as { role: ProjectRole };
+    } catch { /* fall through */ }
+
+    // 2. In-flight deduplication
     const existingLookup = this.membershipLookupInFlight.get(key);
     if (existingLookup) {
       return existingLookup;
@@ -78,15 +87,21 @@ export class ProjectAccessService {
 
     const lookupPromise = this.prismaService.projectMember
       .findUnique({
-        where: {
-          projectId_userId: {
-            projectId,
-            userId,
-          },
-        },
-        select: {
-          role: true,
-        },
+        where: { projectId_userId: { projectId, userId } },
+        select: { role: true },
+      })
+      .then(async (result) => {
+        if (result) {
+          try {
+            const cacheKey = this.membershipCacheKey(projectId, userId);
+            await this.redisService.getClient().setex(
+              cacheKey,
+              MEMBERSHIP_TTL,
+              JSON.stringify(result),
+            );
+          } catch { /* non-critical */ }
+        }
+        return result;
       })
       .finally(() => {
         this.membershipLookupInFlight.delete(key);
