@@ -209,13 +209,17 @@ export default function ApiKeysPage() {
                         : 'Never'}
                     </td>
                     <td className="text-right">
-                      <button
-                        type="button"
-                        className="btn-danger btn-sm"
-                        onClick={() => revoke(item.id)}
-                      >
-                        Revoke
-                      </button>
+                      {item.status !== 'REVOKED' ? (
+                        <button
+                          type="button"
+                          className="btn-danger btn-sm"
+                          onClick={() => revoke(item.id)}
+                        >
+                          Revoke
+                        </button>
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
