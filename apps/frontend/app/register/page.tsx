@@ -39,7 +39,6 @@ export default function RegisterPage() {
       }
 
       router.push('/dashboard');
-      router.refresh();
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
