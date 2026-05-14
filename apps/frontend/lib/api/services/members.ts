@@ -10,4 +10,17 @@ export const membersApi = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  updateRole: (projectId: string, memberId: string, role: string) =>
+    apiFetch<ProjectMemberRecord>(
+      `${endpoints.projects.members(projectId)}/${memberId}/role`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ role }),
+      },
+    ),
+  remove: (projectId: string, memberId: string) =>
+    apiFetch<{ success: boolean }>(
+      `${endpoints.projects.members(projectId)}/${memberId}`,
+      { method: 'DELETE' },
+    ),
 };
