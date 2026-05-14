@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { ReactNode } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { FormEvent, ReactNode, useState } from 'react';
 import { ErrorState, LoadingState } from '@/components/feedback';
 import {
   AnalyticsIcon,
@@ -77,11 +77,49 @@ function buildTiles(project: ProjectSummary): Tile[] {
 export default function ProjectDetailsPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as string;
+  const router = useRouter();
 
   const project = useAsyncResource<ProjectSummary>(
     () => projectsApi.get(projectId),
     [projectId],
   );
+
+  const [showEdit, setShowEdit] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [actionPending, setActionPending] = useState(false);
+  const [actionError, setActionError] = useState('');
+
+  async function handleEdit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setActionPending(true);
+    setActionError('');
+    const form = e.currentTarget;
+    const name = (form.elements.namedItem('name') as HTMLInputElement).value;
+    const description = (form.elements.namedItem('description') as HTMLTextAreaElement).value;
+    const environment = (form.elements.namedItem('environment') as HTMLInputElement).value;
+
+    try {
+      await projectsApi.update(projectId, { name, description, environment });
+      setShowEdit(false);
+      await project.reload();
+    } catch {
+      setActionError('Failed to update project. Please try again.');
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  async function handleDelete() {
+    setActionPending(true);
+    setActionError('');
+    try {
+      await projectsApi.delete(projectId);
+      router.push('/projects');
+    } catch {
+      setActionError('Failed to delete project. Please try again.');
+      setActionPending(false);
+    }
+  }
 
   if (project.loading) {
     return <LoadingState label="Loading project details…" />;
@@ -93,6 +131,7 @@ export default function ProjectDetailsPage() {
 
   const data = project.data;
   const tiles = buildTiles(data);
+  const isOwner = data.currentRole === 'OWNER' || data.currentRole === 'ADMIN';
 
   return (
     <>
@@ -103,28 +142,118 @@ export default function ProjectDetailsPage() {
         ]}
         eyebrow="Project"
         title={data.name}
-        description={
-          data.description || 'This project does not have a description yet.'
-        }
+        description={data.description || 'This project does not have a description yet.'}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <span className="badge-brand">{data.currentRole ?? 'VIEWER'}</span>
-            <span
-              className={data.isActive ? 'badge-success' : 'badge-warning'}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  data.isActive ? 'bg-emerald-500' : 'bg-amber-500'
-                }`}
-              />
+            <span className={data.isActive ? 'badge-success' : 'badge-warning'}>
+              <span className={`h-1.5 w-1.5 rounded-full ${data.isActive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
               {data.isActive ? 'Active' : 'Paused'}
             </span>
             <span className="badge-neutral">{data.environment}</span>
+            {isOwner && (
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => { setShowEdit(true); setActionError(''); }}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition"
+                  onClick={() => { setShowDelete(true); setActionError(''); }}
+                >
+                  Delete
+                </button>
+              </>
+            )}
           </div>
         }
       />
 
       <ProjectTabs projectId={projectId} />
+
+      {/* Edit Modal */}
+      {showEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Edit Project</h2>
+            <form className="mt-4 space-y-4" onSubmit={handleEdit}>
+              <div>
+                <label className="label" htmlFor="edit-name">Project name</label>
+                <input
+                  id="edit-name"
+                  name="name"
+                  className="field"
+                  defaultValue={data.name}
+                  required
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="edit-env">Environment</label>
+                <input
+                  id="edit-env"
+                  name="environment"
+                  className="field"
+                  defaultValue={data.environment}
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="edit-desc">Description</label>
+                <textarea
+                  id="edit-desc"
+                  name="description"
+                  className="field resize-y"
+                  rows={3}
+                  defaultValue={data.description ?? ''}
+                />
+              </div>
+              {actionError && <p className="text-sm text-red-600">{actionError}</p>}
+              <div className="flex gap-2">
+                <button type="submit" className="btn-primary" disabled={actionPending}>
+                  {actionPending ? 'Saving…' : 'Save changes'}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => setShowEdit(false)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Delete project?</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              This will permanently delete <strong>{data.name}</strong> and all its rules, API keys, and logs. This action cannot be undone.
+            </p>
+            {actionError && <p className="mt-3 text-sm text-red-600">{actionError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition disabled:opacity-50"
+                onClick={handleDelete}
+                disabled={actionPending}
+              >
+                {actionPending ? 'Deleting…' : 'Yes, delete'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowDelete(false)}
+                disabled={actionPending}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {tiles.map((tile) => {

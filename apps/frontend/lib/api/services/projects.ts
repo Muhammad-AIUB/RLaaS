@@ -1,4 +1,4 @@
-import type { CreateProjectInput, ProjectSummary } from '@/lib/types';
+import type { CreateProjectInput, ProjectSummary, UpdateProjectInput } from '@/lib/types';
 import { apiFetch } from '../client';
 import { endpoints } from '../endpoints';
 
@@ -9,5 +9,14 @@ export const projectsApi = {
     apiFetch<ProjectSummary>(endpoints.projects.list(), {
       method: 'POST',
       body: JSON.stringify(input),
+    }),
+  update: (id: string, input: UpdateProjectInput) =>
+    apiFetch<ProjectSummary>(endpoints.projects.detail(id), {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    }),
+  delete: (id: string) =>
+    apiFetch<void>(endpoints.projects.detail(id), {
+      method: 'DELETE',
     }),
 };

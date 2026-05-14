@@ -19,3 +19,9 @@ export interface CreateProjectInput {
   description?: string;
   environment?: string;
 }
+
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string;
+  environment?: string;
+}
