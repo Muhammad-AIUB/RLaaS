@@ -19,3 +19,12 @@ export interface CreateWebhookInput {
   windowSeconds: number;
   cooldownSeconds: number;
 }
+
+export interface UpdateWebhookInput {
+  name?: string;
+  url?: string;
+  blockedRequestsThreshold?: number;
+  windowSeconds?: number;
+  cooldownSeconds?: number;
+  isActive?: boolean;
+}

@@ -14,6 +14,7 @@ import { RequestMeta } from '../common/decorators/request-metadata.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import type { RequestMetadata } from '../common/interfaces/request-metadata.interface';
 import { CreateWebhookEndpointDto } from './dto/create-webhook-endpoint.dto';
+import { UpdateWebhookEndpointDto } from './dto/update-webhook-endpoint.dto';
 import { WebhooksService } from './webhooks.service';
 
 @ApiTags('webhooks')
@@ -41,6 +42,18 @@ export class WebhooksController {
     @RequestMeta() request: RequestMetadata,
   ) {
     return this.webhooksService.create(user.sub, projectId, dto, request);
+  }
+
+  @Patch(':webhookId')
+  @ApiOperation({ summary: 'Update a webhook endpoint' })
+  update(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('projectId') projectId: string,
+    @Param('webhookId') webhookId: string,
+    @Body() dto: UpdateWebhookEndpointDto,
+    @RequestMeta() request: RequestMetadata,
+  ) {
+    return this.webhooksService.update(user.sub, projectId, webhookId, dto, request);
   }
 
   @Delete(':webhookId')

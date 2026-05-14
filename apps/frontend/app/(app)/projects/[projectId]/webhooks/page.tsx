@@ -7,7 +7,7 @@ import { PageHeader, ProjectTabs } from '@/components/layout';
 import { Panel, PanelHeader } from '@/components/ui';
 import { webhooksApi } from '@/lib/api';
 import { useAsyncResource } from '@/lib/hooks';
-import type { CreateWebhookInput, WebhookEndpointRecord } from '@/lib/types';
+import type { CreateWebhookInput, UpdateWebhookInput, WebhookEndpointRecord } from '@/lib/types';
 
 function readNumber(form: FormData, key: string, fallback: number): number {
   const raw = form.get(key);
@@ -26,6 +26,9 @@ export default function WebhooksPage() {
   );
   const [pending, setPending] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingWebhook, setEditingWebhook] = useState<WebhookEndpointRecord | null>(null);
+  const [editPending, setEditPending] = useState(false);
+  const [editError, setEditError] = useState('');
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,6 +62,31 @@ export default function WebhooksPage() {
       );
     } finally {
       setPending(false);
+    }
+  }
+
+  async function handleEdit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!editingWebhook) return;
+    setEditPending(true);
+    setEditError('');
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const input: UpdateWebhookInput = {
+      name: String(formData.get('name') ?? ''),
+      url: String(formData.get('url') ?? ''),
+      blockedRequestsThreshold: readNumber(formData, 'blockedRequestsThreshold', editingWebhook.blockedRequestsThreshold),
+      windowSeconds: readNumber(formData, 'windowSeconds', editingWebhook.windowSeconds),
+      cooldownSeconds: readNumber(formData, 'cooldownSeconds', editingWebhook.cooldownSeconds),
+    };
+    try {
+      await webhooksApi.update(projectId, editingWebhook.id, input);
+      setEditingWebhook(null);
+      await webhooks.reload();
+    } catch {
+      setEditError('Failed to update webhook. Please try again.');
+    } finally {
+      setEditPending(false);
     }
   }
 
@@ -203,7 +231,14 @@ export default function WebhooksPage() {
                     {webhook.cooldownSeconds}s
                   </p>
                 </div>
-                <div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary btn-sm"
+                    onClick={() => { setEditingWebhook(webhook); setEditError(''); }}
+                  >
+                    Edit
+                  </button>
                   <button
                     type="button"
                     className="btn-danger btn-sm"
@@ -215,6 +250,44 @@ export default function WebhooksPage() {
               </div>
             </Panel>
           ))}
+        </div>
+      )}
+      {editingWebhook && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+            <h2 className="text-lg font-semibold text-slate-900">Edit Webhook</h2>
+            <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={handleEdit}>
+              <div className="sm:col-span-2">
+                <label className="label">Name</label>
+                <input className="field" name="name" defaultValue={editingWebhook.name} required />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">URL</label>
+                <input className="field" name="url" defaultValue={editingWebhook.url} required />
+              </div>
+              <div>
+                <label className="label">Blocked threshold</label>
+                <input className="field" name="blockedRequestsThreshold" type="number" defaultValue={editingWebhook.blockedRequestsThreshold} required />
+              </div>
+              <div>
+                <label className="label">Window (s)</label>
+                <input className="field" name="windowSeconds" type="number" defaultValue={editingWebhook.windowSeconds} required />
+              </div>
+              <div>
+                <label className="label">Cooldown (s)</label>
+                <input className="field" name="cooldownSeconds" type="number" defaultValue={editingWebhook.cooldownSeconds} required />
+              </div>
+              {editError && <p className="sm:col-span-2 text-sm text-red-600">{editError}</p>}
+              <div className="flex gap-2 sm:col-span-2">
+                <button type="submit" className="btn-primary" disabled={editPending}>
+                  {editPending ? 'Saving…' : 'Save changes'}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => setEditingWebhook(null)}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </>

@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
 import { RedisService } from '../redis/redis.service';
 import { CreateWebhookEndpointDto } from './dto/create-webhook-endpoint.dto';
+import { UpdateWebhookEndpointDto } from './dto/update-webhook-endpoint.dto';
 
 @Injectable()
 export class WebhooksService {
@@ -70,6 +71,53 @@ export class WebhooksService {
     });
 
     return endpoint;
+  }
+
+  async update(
+    userId: string,
+    projectId: string,
+    webhookId: string,
+    dto: UpdateWebhookEndpointDto,
+    request?: RequestMetadata,
+  ) {
+    await this.projectsService.assertProjectAccess(userId, projectId, [
+      ProjectRole.OWNER,
+      ProjectRole.ADMIN,
+    ]);
+
+    const endpoint = await this.prismaService.webhookEndpoint.findFirst({
+      where: { id: webhookId, projectId },
+    });
+
+    if (!endpoint) {
+      throw new NotFoundException('Webhook endpoint not found');
+    }
+
+    const updated = await this.prismaService.webhookEndpoint.update({
+      where: { id: webhookId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.url !== undefined && { url: dto.url }),
+        ...(dto.blockedRequestsThreshold !== undefined && {
+          blockedRequestsThreshold: dto.blockedRequestsThreshold,
+        }),
+        ...(dto.windowSeconds !== undefined && { windowSeconds: dto.windowSeconds }),
+        ...(dto.cooldownSeconds !== undefined && { cooldownSeconds: dto.cooldownSeconds }),
+        ...(dto.isActive !== undefined && { isActive: dto.isActive }),
+      },
+    });
+
+    void this.auditService.log({
+      action: 'webhook.updated',
+      actorId: userId,
+      projectId,
+      resourceType: 'webhook_endpoint',
+      resourceId: webhookId,
+      metadata: { changes: dto },
+      request,
+    });
+
+    return updated;
   }
 
   async remove(
