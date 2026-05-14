@@ -11,12 +11,15 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [slowWarning, setSlowWarning] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError('');
     setPending(true);
+    setSlowWarning(false);
     const formData = new FormData(event.currentTarget);
+    const slowTimer = setTimeout(() => setSlowWarning(true), 5000);
 
     try {
       const response = await fetch('/api/auth/register', {
@@ -44,7 +47,9 @@ export default function RegisterPage() {
           : 'Registration failed',
       );
     } finally {
+      clearTimeout(slowTimer);
       setPending(false);
+      setSlowWarning(false);
     }
   }
 
@@ -129,6 +134,12 @@ export default function RegisterPage() {
             </div>
 
             {error ? <ErrorState message={error} /> : null}
+
+            {slowWarning && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                ⏳ Server is waking up — this usually takes 10–20 seconds on first load. Please wait…
+              </div>
+            )}
 
             <button type="submit" className="btn-primary w-full" disabled={pending}>
               {pending ? 'Creating account…' : 'Create account'}

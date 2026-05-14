@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [slowWarning, setSlowWarning] = useState(false);
 
   useEffect(() => {
     // Pre-warm the backend so it's ready when the user submits
@@ -29,6 +30,8 @@ export default function LoginPage() {
   async function submitCredentials(email: string, password: string) {
     setError('');
     setPending(true);
+    setSlowWarning(false);
+    const slowTimer = setTimeout(() => setSlowWarning(true), 5000);
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -51,7 +54,9 @@ export default function LoginPage() {
         caughtError instanceof Error ? caughtError.message : 'Login failed',
       );
     } finally {
+      clearTimeout(slowTimer);
       setPending(false);
+      setSlowWarning(false);
     }
   }
 
@@ -185,6 +190,12 @@ export default function LoginPage() {
             </div>
 
             {error ? <ErrorState message={error} /> : null}
+
+            {slowWarning && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                ⏳ Server is waking up — this usually takes 10–20 seconds on first load. Please wait…
+              </div>
+            )}
 
             <button type="submit" className="btn-primary w-full" disabled={pending}>
               {pending ? 'Signing in…' : 'Sign in'}
