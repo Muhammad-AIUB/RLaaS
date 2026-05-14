@@ -12,7 +12,7 @@ export const membersApi = {
     }),
   updateRole: (projectId: string, memberId: string, role: string) =>
     apiFetch<ProjectMemberRecord>(
-      `${endpoints.projects.members(projectId)}/${memberId}/role`,
+      `${endpoints.projects.members(projectId)}/${memberId}`,
       {
         method: 'PATCH',
         body: JSON.stringify({ role }),
