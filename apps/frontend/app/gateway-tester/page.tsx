@@ -60,7 +60,7 @@ export default function GatewayTesterPage() {
   const [pending, setPending] = useState(false);
   const [flashBlocked, setFlashBlocked] = useState(false);
   const idRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
