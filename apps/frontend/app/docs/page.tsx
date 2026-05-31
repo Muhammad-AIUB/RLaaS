@@ -65,6 +65,20 @@ export default function DocsPage() {
           </div>
         </div>
 
+        {/* Gateway Tester callout */}
+        <Link
+          href="/gateway-tester"
+          className="mb-6 flex items-center justify-between rounded-xl border-2 border-brand-200 bg-brand-50 px-5 py-4 transition-colors hover:border-brand-300 hover:bg-brand-100"
+        >
+          <div>
+            <p className="font-semibold text-brand-800">🧪 Live Gateway Tester — no login required</p>
+            <p className="mt-0.5 text-sm text-brand-600">
+              Click &ldquo;Send Request&rdquo; and watch rate limiting enforce in real time. Try all 4 algorithms.
+            </p>
+          </div>
+          <span className="ml-4 shrink-0 font-medium text-brand-700">Try it →</span>
+        </Link>
+
         {/* What is this */}
         <div className="card mb-6 p-6">
           <p className="text-sm font-semibold uppercase tracking-widest text-brand-600">What is RLaaS?</p>

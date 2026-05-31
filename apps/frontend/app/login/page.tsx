@@ -134,7 +134,19 @@ export default function LoginPage() {
             Sign in with your operator credentials.
           </p>
 
-          <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+          {/* Gateway Tester CTA */}
+          <Link
+            href="/gateway-tester"
+            className="mt-5 flex items-center justify-between rounded-xl border-2 border-brand-200 bg-brand-50 px-4 py-3 text-sm transition-colors hover:border-brand-300 hover:bg-brand-100"
+          >
+            <div>
+              <p className="font-semibold text-brand-800">🧪 Try the Live Gateway Tester</p>
+              <p className="text-xs text-brand-600">No login needed — see rate limiting in action</p>
+            </div>
+            <span className="font-medium text-brand-700">→</span>
+          </Link>
+
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="label">
                 Email
