@@ -1,0 +1,23 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".characterization-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": [
+      "ts-jest",
+      {
+        "tsconfig": {
+          "module": "commonjs",
+          "moduleResolution": "node",
+          "resolvePackageJsonExports": false
+        }
+      }
+    ]
+  },
+  "setupFiles": ["<rootDir>/characterization/support/env-setup.ts"],
+  "globalSetup": "<rootDir>/characterization/support/global-setup.ts",
+  "testTimeout": 30000,
+  "maxWorkers": 1,
+  "verbose": true
+}
