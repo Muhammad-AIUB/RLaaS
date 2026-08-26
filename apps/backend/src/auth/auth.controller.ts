@@ -30,7 +30,10 @@ export class AuthController {
 
   @Public()
   @Post('forgot-password')
-  @ApiOperation({ summary: 'Generate a password reset code (returned in response)' })
+  @ApiOperation({
+    summary:
+      'Request a password reset code. The code is never returned — it is stored in Redis only.',
+  })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto);
   }

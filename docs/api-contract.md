@@ -159,16 +159,17 @@ them is inert because no global guard exists.
 |---|---|---|---|
 | `POST /register` | 201 | `{ email, password (8-128), fullName (<=120), tier? }` | `{ accessToken, user: { id, email, fullName, tier, createdAt, updatedAt } }` |
 | `POST /login` | 201 | `{ email, password }` | same `AuthResponse` |
-| `POST /forgot-password` | 201 | `{ email }` | `{ resetCode: "483921", expiresInSeconds: 600 }` |
+| `POST /forgot-password` | 201 | `{ email }` | `{ message: "If that email is registered…", expiresInSeconds: 600 }` |
 | `POST /reset-password` | 201 | `{ email, code (exactly 6), newPassword (8-128) }` | `{ message: "Password reset successfully" }` |
 
 - `tier` enum: `FREE` \| `PRO` \| `BUSINESS` \| `ENTERPRISE`, default `FREE`.
 - `register` → 409 if the email exists (`auth.service.ts:29-31`).
 - `login` → 401 `"Invalid credentials"` for unknown email, inactive user, or bad
   password — one message for all three (`auth.service.ts:58-66`).
-- `forgot-password` **returns the live 6-digit reset code in the response body**
-  (`auth.service.ts:90-95`) and stores it at `pwd_reset:{email}` for 600s. Unknown or
-  inactive email returns `{"resetCode":"------"}` with the same 201.
+- `forgot-password` stores a 6-digit code at `pwd_reset:{email}` for 600s and returns
+  the **same body for every email**, registered or not — the code is not in it. With
+  `NODE_ENV != production` and `AUTH_LOG_RESET_CODE=true` the code is written to the
+  server log instead (`auth.service.ts:99-136`); there is no email transport.
 - `reset-password` → 400 `"Invalid or expired reset code"` on any mismatch; deletes the
   Redis key on success (`auth.service.ts:115`).
 - Redis unreachable → 500 on both password-reset routes (no try/catch on
@@ -542,14 +543,21 @@ analytics for the cache's lifetime (30-120s). `projects.service.ts:93-96,119-122
 same cache-before-check ordering, but its key includes the user id, so the exposure there
 is limited to stale access after a role change or removal.
 
-### GAP-4 — `POST /auth/forgot-password` hands the reset code to the caller
+### GAP-4 — `POST /auth/forgot-password` handed the reset code to the caller — FIXED
 
-`auth.service.ts:90-95` returns the live 6-digit code in the response body to an
-unauthenticated caller. Combined with `POST /auth/reset-password`, two anonymous requests
-take over any account by email address. The Swagger summary (`auth.controller.ts:33`)
-documents this as intended behaviour, which is why it is listed as a gap rather than a
-bug: the contract itself is the problem. No email transport exists in the codebase to
-make the alternative work.
+**Was:** the live 6-digit code came back in the response body of an unauthenticated
+route, so two anonymous requests took over any account by email address, and the Swagger
+summary documented that as intended.
+
+**Now:** the code is written only to Redis. The response carries a fixed message and the
+TTL, identical for a registered and an unregistered email. `Math.random()` was replaced
+with `randomInt` from node:crypto. Since no email transport exists, the code can be
+logged server-side for local work by setting `AUTH_LOG_RESET_CODE=true`, which is ignored
+when `NODE_ENV=production` (`auth.service.ts:99-146`).
+
+**Still open:** the reset flow has no delivery channel, so in production a user cannot
+obtain the code at all. The frontend at `apps/frontend/app/forgot-password/page.tsx:36`
+still reads `data.resetCode` and now displays an empty box.
 
 ### GAP-5 — Nothing rate-limits the rate limiter
 

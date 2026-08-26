@@ -1,7 +1,14 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UserTier } from '@prisma/client';
 import { compare, hash } from 'bcryptjs';
+import { randomInt } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 import { AuthResponse } from '../common/interfaces/auth-response.interface';
 import { RequestMetadata } from '../common/interfaces/request-metadata.interface';
@@ -14,8 +21,20 @@ import { UsersService } from '../users/users.service';
 
 const RESET_CODE_TTL = 600; // 10 minutes
 
+/**
+ * Same body whether or not the email is registered, so the endpoint stays
+ * non-enumerable. The code itself is never part of it.
+ */
+const RESET_REQUEST_ACCEPTED = {
+  message:
+    'If that email is registered, a reset code has been issued. It expires in 10 minutes.',
+  expiresInSeconds: RESET_CODE_TTL,
+} as const;
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -79,20 +98,55 @@ export class AuthService {
     return this.buildAuthResponse(user);
   }
 
-  async forgotPassword(dto: ForgotPasswordDto): Promise<{ resetCode: string; expiresInSeconds: number }> {
+  /**
+   * Issues a password reset code.
+   *
+   * The code is NOT returned to the caller: this route is unauthenticated, so
+   * anything in the response body is readable by whoever asked, and together
+   * with `resetPassword` that is a complete account takeover by email address.
+   * The code exists only in Redis under `pwd_reset:{email}`.
+   *
+   * There is no email transport in this codebase, so outside production the
+   * code can be written to the server log to keep the flow testable — opt-in,
+   * and refused in production even if the flag is set.
+   */
+  async forgotPassword(
+    dto: ForgotPasswordDto,
+  ): Promise<{ message: string; expiresInSeconds: number }> {
     const user = await this.usersService.findByEmail(dto.email);
 
     // Always return success to prevent email enumeration
     if (!user || !user.isActive) {
-      return { resetCode: '------', expiresInSeconds: RESET_CODE_TTL };
+      return { ...RESET_REQUEST_ACCEPTED };
     }
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = this.generateResetCode();
     const key = `pwd_reset:${dto.email.toLowerCase()}`;
 
     await this.redisService.getClient().setex(key, RESET_CODE_TTL, code);
 
-    return { resetCode: code, expiresInSeconds: RESET_CODE_TTL };
+    if (this.resetCodeLoggingEnabled()) {
+      this.logger.warn(
+        `AUTH_LOG_RESET_CODE is on: reset code for ${dto.email} is ${code} (valid ${RESET_CODE_TTL}s)`,
+      );
+    }
+
+    return { ...RESET_REQUEST_ACCEPTED };
+  }
+
+  /**
+   * `randomInt` is the CSPRNG from node:crypto. It rejection-samples internally,
+   * so the six digits are uniform; `randomBytes(3) % 900000` would not be.
+   */
+  private generateResetCode(): string {
+    return String(randomInt(100_000, 1_000_000));
+  }
+
+  private resetCodeLoggingEnabled(): boolean {
+    return (
+      process.env.NODE_ENV !== 'production' &&
+      process.env.AUTH_LOG_RESET_CODE === 'true'
+    );
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
