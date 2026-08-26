@@ -70,7 +70,7 @@ Behaviour recorded here that looks wrong, worst first.
 | `rules` › `PATCH` with `isActive` | Rejected with 400. `UpdateRuleDto` is `PartialType(CreateRuleDto)` and `CreateRuleDto` has no `isActive`, so the dashboard's activate/deactivate switch — which posts exactly that body — can never work. |
 | `gateway-check` › rule scoping | A `GLOBAL` rule still composes its Redis key from method + endpoint + tier, so "N per minute globally" is really N per minute per endpoint per method per tier. |
 | `gateway-check` › tier bucket | `userTier` is read from the request body, so the caller chooses its own bucket, and with a `USER_TIER` rule its own limit. |
-| `gateway-check` › deferred writes | The decision is returned before the request-log write completes. The write is launched with `void` and nothing catches its rejection. |
+| `gateway-check` › deferred writes | The decision is returned before the request-log write completes. Deliberate — but a failed write is only logged, so the row is lost silently. (Its rejection is caught as of C4; it used to be uncaught.) |
 | `gateway-check` › unknown key | Returns `201` with a decision body rather than `401`/`403`, and reports `algorithm: fixed_window` although no algorithm ran. |
 | `gateway-check` › `method` validation | `method` is only `@IsString()`/`@MaxLength(16)` but is cast to the Prisma `HttpMethod` enum when the log row is written. |
 | `demo-check` › identifier | Unauthenticated callers mint one Redis key per identifier string, with no cap. |

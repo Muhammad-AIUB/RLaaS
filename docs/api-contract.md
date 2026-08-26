@@ -571,11 +571,17 @@ so anyone can exhaust anyone else's demo quota.
 
 `method` is validated only as `@IsString() @MaxLength(16)`
 (`gateway-check.dto.ts:22-25`), then cast unchecked into the Prisma enum:
-`method: dto.method as HttpMethod` (`rate-limiter.service.ts:351`). A request with
-`"method": "FOO"` passes validation, the rate-limit check succeeds and returns 201, then
-the fire-and-forget `persistRequestOutcome` (invoked with `void`, line 195) rejects
-inside Prisma with nobody awaiting it. Same exposure for the `userTier` free-string,
-though `toPrismaUserTier` maps unknown values to `null` and survives.
+`method: dto.method as HttpMethod`. A request with `"method": "FOO"` passes validation,
+the rate-limit check succeeds and returns 201, then the fire-and-forget
+`persistRequestOutcome` rejects inside Prisma. Same exposure for the `userTier`
+free-string, though `toPrismaUserTier` maps unknown values to `null` and survives.
+
+**Partly fixed (C4):** all four detached calls in `rate-limiter.service.ts`
+(`persistRequestOutcome` and `notifyHighBlockedActivity`, on both the proxy and the
+check path) now `.catch()` and log, and `main.ts` registers a process-level
+`unhandledRejection` handler, so the process no longer dies. **Still open:** the DTO
+still does not validate `method`, so the write itself still fails and that request log
+row is still lost — now silently, with a log line.
 
 ### GAP-7 — `/health` cannot report the degraded state it was written to report
 

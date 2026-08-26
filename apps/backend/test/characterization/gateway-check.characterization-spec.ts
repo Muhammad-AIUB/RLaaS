@@ -437,10 +437,11 @@ describe('POST /api/v1/gateway/check', () => {
         const response = await post(validRequest());
         const elapsedMs = Date.now() - startedAt;
 
-        // KNOWN-ODD: persistRequestOutcome is launched with `void`, so the
-        // decision is returned while the log write is still blocked. Nothing
-        // awaits it and nothing catches its rejection — an unhandled rejection
-        // here terminates the process under Node's default policy.
+        // Intentional: persistRequestOutcome is launched with `void`, so the
+        // decision is returned while the log write is still blocked. The caller
+        // must not pay for the log write. Its rejection is caught and logged
+        // (C4); the row is still lost, which is what the KNOWN-ODD below the
+        // `method` test records.
         expect(response.status).toBe(201);
         expect(response.body.allowed).toBe(true);
         expect(elapsedMs).toBeLessThan(1_000);

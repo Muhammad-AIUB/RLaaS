@@ -6,7 +6,7 @@ import {
   RuleAlgorithm,
   UserTier,
 } from '@prisma/client';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiKeysService } from '../api-keys/api-keys.service';
 import { AlgorithmRegistryService } from '../algorithms/algorithm-registry.service';
@@ -30,6 +30,8 @@ type ApiKeyValidationResult =
 
 @Injectable()
 export class RateLimiterService {
+  private readonly logger = new Logger(RateLimiterService.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly algorithmRegistryService: AlgorithmRegistryService,
@@ -115,17 +117,23 @@ export class RateLimiterService {
       rule,
       result,
       response,
-    });
+    }).catch((error: unknown) =>
+      this.logDeferredFailure('persistRequestOutcome', error),
+    );
 
     if (!response.allowed) {
-      void this.webhooksService.notifyHighBlockedActivity({
-        projectId: apiKey.projectId,
-        endpoint: dto.endpoint,
-        method: normalizedMethod,
-        ruleId: rule.id,
-        ruleName: rule.name,
-        ipAddress: dto.ip,
-      });
+      void this.webhooksService
+        .notifyHighBlockedActivity({
+          projectId: apiKey.projectId,
+          endpoint: dto.endpoint,
+          method: normalizedMethod,
+          ruleId: rule.id,
+          ruleName: rule.name,
+          ipAddress: dto.ip,
+        })
+        .catch((error: unknown) =>
+          this.logDeferredFailure('notifyHighBlockedActivity', error),
+        );
     }
 
     return response;
@@ -206,7 +214,9 @@ export class RateLimiterService {
       rule,
       result,
       response,
-    });
+    }).catch((error: unknown) =>
+      this.logDeferredFailure('persistRequestOutcome', error),
+    );
 
     if (idempotencyCacheKey) {
       await measure('idem', () =>
@@ -220,14 +230,18 @@ export class RateLimiterService {
     }
 
     if (!response.allowed) {
-      void this.webhooksService.notifyHighBlockedActivity({
-        projectId: apiKey.projectId,
-        endpoint: dto.endpoint,
-        method: normalizedMethod,
-        ruleId: rule.id,
-        ruleName: rule.name,
-        ipAddress: dto.ip,
-      });
+      void this.webhooksService
+        .notifyHighBlockedActivity({
+          projectId: apiKey.projectId,
+          endpoint: dto.endpoint,
+          method: normalizedMethod,
+          ruleId: rule.id,
+          ruleName: rule.name,
+          ipAddress: dto.ip,
+        })
+        .catch((error: unknown) =>
+          this.logDeferredFailure('notifyHighBlockedActivity', error),
+        );
     }
 
     return response;
@@ -266,6 +280,25 @@ export class RateLimiterService {
       default:
         return 'global';
     }
+  }
+
+  /**
+   * These four calls are launched with `void` on purpose: the caller is waiting
+   * on a rate-limit decision and must not pay for a log write or a webhook POST.
+   * Detaching them is the design; leaving them uncaught was not. Under Node's
+   * default policy an unhandled rejection terminates the process, and both are
+   * reachable from `POST /gateway/check` — see GAP-6 in docs/api-contract.md.
+   *
+   * The failure is logged and swallowed. The decision has already been returned
+   * and is not affected either way.
+   */
+  private logDeferredFailure(operation: string, error: unknown): void {
+    this.logger.error(
+      `Deferred ${operation} failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      error instanceof Error ? error.stack : undefined,
+    );
   }
 
   private buildDefaultRule(): ResolvedRateLimitRule {
