@@ -13,8 +13,13 @@ change that behaviour, you have found a regression.
 ## Running
 
 ```bash
-npx jest --config ./test/jest-characterization.json
+pnpm test:characterization
 ```
+
+`pnpm test` (in `apps/backend`, or at the repo root) runs the unit suite and
+then this one. The two configs stay separate — `jest.config` in
+`package.json` still only picks up `src/**/*.spec.ts` — they are chained by
+the `test` script.
 
 Redis must be reachable. Anything works:
 
@@ -25,7 +30,7 @@ docker run --rm -p 6379:6379 redis:7-alpine
 To point at a different instance (an Upstash test database, for example):
 
 ```bash
-CHARACTERIZATION_REDIS_URL=rediss://<user>:<pass>@<host>:<port> npx jest --config ./test/jest-characterization.json
+CHARACTERIZATION_REDIS_URL=rediss://<user>:<pass>@<host>:<port> pnpm test:characterization
 ```
 
 The suite uses Redis **database index 15** by default and flushes it between
@@ -33,8 +38,10 @@ tests. `globalSetup` refuses to start if that index is not empty, so it can
 never wipe a database it does not own. Override with
 `CHARACTERIZATION_ALLOW_DIRTY=1` only if you are certain.
 
-The suite does not run under `pnpm test` — that config only picks up
-`src/**/*.spec.ts`, and nothing about the existing unit tests changes.
+In CI both suites run in the `validate` job
+([.github/workflows/ci.yml](../../../../.github/workflows/ci.yml)), against a
+`redis:7-alpine` service container. A fresh container satisfies the
+empty-index check above, so no override is needed there.
 
 ## What is real and what is not
 

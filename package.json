@@ -14,7 +14,10 @@
     "build:express-demo": "pnpm --filter @rlaas/express-demo build",
     "loadtest:gateway": "k6 run tests/load/gateway-check.k6.js",
     "benchmark:algorithms": "tsx benchmarks/algorithm-benchmark.ts",
-    "test:backend": "pnpm --filter @rlaas/backend test"
+    "test": "pnpm --filter @rlaas/backend test",
+    "test:backend": "pnpm --filter @rlaas/backend test",
+    "test:backend:unit": "pnpm --filter @rlaas/backend test:unit",
+    "test:backend:characterization": "pnpm --filter @rlaas/backend test:characterization"
   },
   "packageManager": "pnpm@10.33.2",
   "devDependencies": {

@@ -10,6 +10,21 @@ jobs:
   validate:
     runs-on: ubuntu-latest
 
+    services:
+      # The characterization suite deliberately does NOT mock Redis — TTL, key
+      # layout and Lua atomicity are the behaviours it records. It talks to
+      # database index 15 and refuses to start unless that index is empty,
+      # which a fresh container guarantees.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,5 +56,10 @@ jobs:
           pnpm --filter @rlaas/backend build
           pnpm --filter @rlaas/frontend build
 
-      - name: Run backend tests
+      - name: Run backend unit tests
         run: pnpm --filter @rlaas/backend test:unit
+
+      - name: Run backend characterization tests
+        run: pnpm --filter @rlaas/backend test:characterization
+        env:
+          CHARACTERIZATION_REDIS_URL: redis://127.0.0.1:6379/15
