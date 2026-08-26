@@ -112,7 +112,7 @@ describe('/api/v1/projects/:projectId/api-keys', () => {
   });
 
   describe('GET / (list)', () => {
-    it('lets a VIEWER read every key hash in the project', async () => {
+    it('lets a VIEWER read the list without exposing the stored hash', async () => {
       await asUser(ownerToken).post(base, { name: 'Primary key' });
 
       const response = await asUser(viewerToken).get(base);
@@ -120,27 +120,35 @@ describe('/api/v1/projects/:projectId/api-keys', () => {
       expect(response.status).toBe(200);
       expect(response.body).toHaveLength(1);
 
-      // KNOWN-ODD: the list returns whole rows, so `hashedKey` is disclosed to
-      // every project member including read-only VIEWERs. The plaintext key is
-      // not recoverable from it, but it is still the stored credential.
-      expect(response.body[0].hashedKey).toEqual(expect.any(String));
+      // The list used to return whole rows, `hashedKey` included, to every
+      // member down to a read-only VIEWER (F3). It is now selected out; the
+      // plaintext key was never in the list either.
+      expect(response.body[0].hashedKey).toBeUndefined();
       expect(response.body[0].key).toBeUndefined();
+      expect(response.body[0]).toMatchObject({
+        projectId: PROJECT_ID,
+        name: 'Primary key',
+        status: ApiKeyStatus.ACTIVE,
+      });
     });
 
-    it('serves the cached key list — hashes included — to a NON-MEMBER', async () => {
+    it('refuses a NON-MEMBER even when a member has warmed the cache', async () => {
       await asUser(ownerToken).post(base, { name: 'Primary key' });
 
       const asMember = await asUser(ownerToken).get(base);
       const asOutsider = await asUser(strangerToken).get(base);
 
-      // KNOWN-ODD — SECURITY. listByProject reads `cache:apikeys:project:<id>`
-      // before assertProjectAccess runs, and the key is not scoped to the
-      // caller. Any authenticated user can read another project's API key rows,
-      // hashes and all, for the 60s the entry lives. This is the same defect as
-      // on the rules and analytics endpoints, but with the worst payload.
-      expect(asOutsider.status).toBe(200);
-      expect(asOutsider.body).toEqual(asMember.body);
-      expect(asOutsider.body[0].hashedKey).toEqual(expect.any(String));
+      // Was the worst instance of the cache-before-authorization defect (C3):
+      // `cache:apikeys:project:<id>` is scoped to the project, not the caller,
+      // and it was read before assertProjectAccess — so any authenticated user
+      // could read another project's key rows, hashes included, for 60s.
+      // assertProjectAccess now runs first.
+      expect(asMember.status).toBe(200);
+      expect(asOutsider.status).toBe(404);
+      expect(asOutsider.body.error.message).toBe('Project not found');
+
+      // The entry is still warm — the refusal is authorization, not a cold miss.
+      expect(await ctx.redis.exists(`cache:apikeys:project:${PROJECT_ID}`)).toBe(1);
     });
 
     it('refuses the non-member when the cache is cold', async () => {

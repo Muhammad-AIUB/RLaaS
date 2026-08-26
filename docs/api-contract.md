@@ -228,7 +228,7 @@ back to `OWNER`. Owner role changes/removals raise 409 through `ensureMutableMem
 | Route | Status | Required role | Request | Response |
 |---|---|---|---|---|
 | `POST /` | 201 | WRITE | `{ name (<=120), expiresAt? (ISO date) }` | full row **plus `key`** |
-| `GET /` | 200 | READ | — | array of rows (no `key`) |
+| `GET /` | 200 | READ | — | array of rows (no `key`, no `hashedKey`) |
 | `PATCH /:apiKeyId/revoke` | 200 | WRITE | — | updated row, `status: "REVOKED"` |
 
 The plaintext key (`rlaas_live_` + 48 hex chars, `api-keys.service.ts:195-197`) is
@@ -238,6 +238,9 @@ both the per-key gateway cache and the project list cache, so it takes effect
 immediately rather than after the 30s TTL (`api-keys.service.ts:137-139`).
 
 404 `"API key not found"` if the id does not belong to the project.
+
+`GET /` selects an explicit column list that omits `hashedKey` (F3). The create and
+revoke responses still carry it — see GAP-3.
 
 ---
 
@@ -531,17 +534,28 @@ and no algorithm receives it: `RateLimitParams`
 capacity from `limit` (`token-bucket-algorithm.service.ts:51-53`). Configuring a burst
 silently does nothing.
 
-### GAP-3 — Cached reads bypass authorization
+### GAP-3 — Cached reads bypassed authorization — FIXED
 
-`api-keys.service.ts:84-88`, `rules.service.ts:78-82`, and every aggregate in
-`analytics.service.ts:36-39,54-58,73-77,97-100` return the cached value **before**
-calling `assertProjectAccess`. Those cache keys are project-scoped only
+**Was:** `api-keys.service.ts`, `rules.service.ts` and all four aggregates in
+`analytics.service.ts` returned the cached value **before** calling
+`assertProjectAccess`. Those cache keys are project-scoped only
 (`cache:apikeys:project:{projectId}`, `cache:rules:project:{projectId}`,
-`cache:analytics:{type}:{projectId}:...`) with no user or role component. Any
-authenticated user who knows a project id reads another tenant's keys, rules, and
-analytics for the cache's lifetime (30-120s). `projects.service.ts:93-96,119-122` has the
-same cache-before-check ordering, but its key includes the user id, so the exposure there
-is limited to stale access after a role change or removal.
+`cache:analytics:{type}:{projectId}:...`) with no user or role component, so any
+authenticated user who knew a project id read another tenant's keys, rules and
+analytics for the cache's lifetime (30-120s).
+
+**Now:** all six authorize first, then read the cache. The keys are unchanged — the
+ordering was the defect, not the layout. `GET /api-keys` additionally selects an
+explicit column list that omits `hashedKey` (F3).
+
+**Still open:**
+- `projects.service.ts` (`listByUser`, `getById`) keeps the cache-before-check
+  ordering. Its keys include the user id, so the exposure is stale access after a role
+  change or removal, not cross-tenant reads.
+- The API-key **create** and **revoke** responses still return `hashedKey`; only the
+  list was narrowed.
+- Entries written before the deploy still contain `hashedKey` and are served until they
+  expire (60s).
 
 ### GAP-4 — `POST /auth/forgot-password` handed the reset code to the caller — FIXED
 

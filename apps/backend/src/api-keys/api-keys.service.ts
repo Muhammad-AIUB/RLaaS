@@ -14,6 +14,20 @@ import { CreateApiKeyDto } from './dto/create-api-key.dto';
 const API_KEY_CACHE_TTL = 30;
 const API_KEY_LIST_TTL = 60;
 
+/** Every ApiKey column except `hashedKey`. */
+const API_KEY_LIST_FIELDS = {
+  id: true,
+  projectId: true,
+  name: true,
+  keyPrefix: true,
+  hashVersion: true,
+  status: true,
+  lastUsedAt: true,
+  expiresAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 @Injectable()
 export class ApiKeysService {
   constructor(
@@ -81,21 +95,28 @@ export class ApiKeysService {
   }
 
   async listByProject(userId: string, projectId: string) {
-    const key = this.apiKeyListKey(projectId);
-    try {
-      const cached = await this.redisService.getClient().get(key);
-      if (cached) return JSON.parse(cached);
-    } catch { /* fall through */ }
-
+    // Authorization first. The cache key is scoped to the project, not to the
+    // caller, so reading it before this check served another project's key rows
+    // to any authenticated user for the 60s the entry lived.
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
 
+    const key = this.apiKeyListKey(projectId);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
+
     const apiKeys = await this.prismaService.apiKey.findMany({
       where: { projectId },
       orderBy: { createdAt: 'desc' },
+      // Explicit column list: `hashedKey` is the stored credential digest and
+      // no client needs it. Whole-row selects put it in the response and in the
+      // cache entry.
+      select: API_KEY_LIST_FIELDS,
     });
 
     try {

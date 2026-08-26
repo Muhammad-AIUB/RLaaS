@@ -16,6 +16,11 @@ import { CreateSnapshotDto } from './dto/create-snapshot.dto';
 
 const ANALYTICS_TTL = 60;
 
+// Every reader below authorizes BEFORE touching the cache. The analytics cache
+// keys are scoped to the project and the query, never to the caller, so a read
+// placed ahead of assertProjectAccess hands one project's traffic data to any
+// authenticated user while the entry is warm.
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
@@ -32,17 +37,17 @@ export class AnalyticsService {
   }
 
   async getOverview(userId: string, projectId: string, query: AnalyticsQueryDto) {
-    const key = this.analyticsKey('overview', projectId, query);
-    try {
-      const cached = await this.redisService.getClient().get(key);
-      if (cached) return JSON.parse(cached);
-    } catch { /* fall through */ }
-
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
+
+    const key = this.analyticsKey('overview', projectId, query);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
     const result = await this.queryOverview(projectId, query);
     try {
       await this.redisService.getClient().setex(key, ANALYTICS_TTL, JSON.stringify(result));
@@ -51,17 +56,17 @@ export class AnalyticsService {
   }
 
   async getTopIps(userId: string, projectId: string, query: AnalyticsQueryDto) {
-    const key = this.analyticsKey('topIps', projectId, query);
-    try {
-      const cached = await this.redisService.getClient().get(key);
-      if (cached) return JSON.parse(cached);
-    } catch { /* fall through */ }
-
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
+
+    const key = this.analyticsKey('topIps', projectId, query);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
     const result = await this.queryTopIps(projectId, query);
     try {
       await this.redisService.getClient().setex(key, ANALYTICS_TTL, JSON.stringify(result));
@@ -70,17 +75,17 @@ export class AnalyticsService {
   }
 
   async getTopEndpoints(userId: string, projectId: string, query: AnalyticsQueryDto) {
-    const key = this.analyticsKey('topEndpoints', projectId, query);
-    try {
-      const cached = await this.redisService.getClient().get(key);
-      if (cached) return JSON.parse(cached);
-    } catch { /* fall through */ }
-
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
+
+    const key = this.analyticsKey('topEndpoints', projectId, query);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
     const result = await this.queryTopEndpoints(projectId, query);
     try {
       await this.redisService.getClient().setex(key, ANALYTICS_TTL, JSON.stringify(result));
@@ -93,17 +98,17 @@ export class AnalyticsService {
     projectId: string,
     query: AnalyticsQueryDto,
   ) {
-    const key = this.analyticsKey('algorithms', projectId, query);
-    try {
-      const cached = await this.redisService.getClient().get(key);
-      if (cached) return JSON.parse(cached);
-    } catch { /* fall through */ }
-
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
+
+    const key = this.analyticsKey('algorithms', projectId, query);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
     const result = await this.queryAlgorithmPerformance(projectId, query);
     try {
       await this.redisService.getClient().setex(key, ANALYTICS_TTL, JSON.stringify(result));

@@ -217,7 +217,7 @@ describe('/api/v1/projects/:projectId/rules', () => {
       ]);
     });
 
-    it('serves the cached list to a NON-MEMBER once any member has warmed it', async () => {
+    it('refuses a NON-MEMBER even once a member has warmed the cache', async () => {
       seedRule({ name: 'Sensitive policy' });
 
       const asMember = await asUser(ownerToken).get(base);
@@ -225,15 +225,16 @@ describe('/api/v1/projects/:projectId/rules', () => {
 
       const asOutsider = await asUser(strangerToken).get(base);
 
-      // KNOWN-ODD — SECURITY. listByProject reads the Redis cache *before*
-      // calling assertProjectAccess, and the cache key is scoped to the project
-      // rather than the caller. Any authenticated user therefore reads another
-      // project's rules for the 60s lifetime of the entry. The same shape
-      // exists on the API-key list and all four analytics endpoints.
-      expect(asOutsider.status).toBe(200);
-      expect(asOutsider.body).toEqual(asMember.body);
+      // listByProject used to read the Redis cache *before* calling
+      // assertProjectAccess, and the cache key is scoped to the project rather
+      // than the caller — so any authenticated user read another project's
+      // rules for the 60s lifetime of the entry (C3). The same shape existed on
+      // the API-key list and all four analytics endpoints; all six now
+      // authorize first.
+      expect(asOutsider.status).toBe(404);
+      expect(asOutsider.body.error.message).toBe('Project not found');
 
-      // Proof it came from the cache and not the database:
+      // The entry is warm, so this is authorization talking, not a cache miss:
       expect(await ctx.redis.exists(`cache:rules:project:${PROJECT_ID}`)).toBe(1);
       expect(
         ctx.prisma.members.find((member) => member.userId === STRANGER_ID),

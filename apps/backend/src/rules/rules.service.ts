@@ -75,17 +75,19 @@ export class RulesService {
   }
 
   async listByProject(userId: string, projectId: string) {
-    const key = this.rulesListKey(projectId);
-    try {
-      const cached = await this.redisService.getClient().get(key);
-      if (cached) return JSON.parse(cached);
-    } catch { /* fall through */ }
-
+    // Authorization first: the cache key is scoped to the project, not to the
+    // caller, so a warm entry used to be readable by any authenticated user.
     await this.projectsService.assertProjectAccess(userId, projectId, [
       ProjectRole.OWNER,
       ProjectRole.ADMIN,
       ProjectRole.VIEWER,
     ]);
+
+    const key = this.rulesListKey(projectId);
+    try {
+      const cached = await this.redisService.getClient().get(key);
+      if (cached) return JSON.parse(cached);
+    } catch { /* fall through */ }
 
     const rules = await this.prismaService.rateLimitRule.findMany({
       where: { projectId },

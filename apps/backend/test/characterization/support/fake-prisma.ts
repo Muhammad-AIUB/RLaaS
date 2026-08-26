@@ -125,7 +125,12 @@ export class FakePrisma {
       const matched = this.apiKeys.filter(
         (row) => where.projectId === undefined || row.projectId === where.projectId,
       );
-      return sortRows(matched, args.orderBy);
+      // Sort on whole rows (orderBy may name a column `select` drops), then
+      // project. The real client honours `select` here and the double did not,
+      // which would have let a column leak through the list unnoticed.
+      return sortRows(matched, args.orderBy).map(
+        (row) => applySelect(row, args.select) as Row,
+      );
     },
 
     create: async (args: Row): Promise<Row> => {

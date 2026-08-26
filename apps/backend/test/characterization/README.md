@@ -63,10 +63,9 @@ Behaviour recorded here that looks wrong, worst first.
 
 | Where | Recorded behaviour |
 |---|---|
-| `api-keys` › cached list to non-member | Any authenticated user can read another project's API key rows, `hashedKey` included, while the cache is warm. The cache is read before the permission check and is not scoped to the caller. |
+| `api-keys` › create / revoke response | Both still return `hashedKey`, the stored credential digest. The list no longer does (F3), and the cached-list-to-non-member hole is closed (C3). |
 | `gateway-check` › expired key | An expired key is rejected on the first call, then **allowed** for the next 30 seconds. The cached copy round-trips `expiresAt` through JSON, and comparing the resulting string to a `Date` yields `NaN`, so the expiry check silently passes. |
 | `algorithms-redis` › sliding window counter | The script reads `<key>:previous:<n-1>`, which nothing ever writes. The previous window is always counted as zero, so the algorithm degrades to a fixed window and allows up to 2× the limit across a boundary. |
-| `rules` › cached list to non-member | Same cache-before-authorization defect as the API keys list. |
 | `rules` › `PATCH` with `isActive` | Rejected with 400. `UpdateRuleDto` is `PartialType(CreateRuleDto)` and `CreateRuleDto` has no `isActive`, so the dashboard's activate/deactivate switch — which posts exactly that body — can never work. |
 | `gateway-check` › rule scoping | A `GLOBAL` rule still composes its Redis key from method + endpoint + tier, so "N per minute globally" is really N per minute per endpoint per method per tier. |
 | `gateway-check` › tier bucket | `userTier` is read from the request body, so the caller chooses its own bucket, and with a `USER_TIER` rule its own limit. |
