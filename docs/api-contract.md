@@ -221,6 +221,11 @@ Caching: list `cache:projects:user:{userId}` 120s, detail
 404 `"User not found"` when the invited email has no account. Adding yourself is forced
 back to `OWNER`. Owner role changes/removals raise 409 through `ensureMutableMember`.
 
+`PATCH` and `DELETE` bust `cache:membership:{projectId}:{userId}` (F5), so a demotion or
+a removal takes effect on the next request rather than after the 120s TTL. `POST` needs
+no equivalent: only positive membership lookups are cached, so there is no negative entry
+to clear.
+
 ---
 
 ## 5. API keys — `/api/v1/projects/:projectId/api-keys`

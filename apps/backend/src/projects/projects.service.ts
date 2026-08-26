@@ -314,6 +314,11 @@ export class ProjectsService {
       },
     });
 
+    // The new role must take effect now, not in up to MEMBERSHIP_TTL seconds.
+    // assertAccess reads cache:membership:<projectId>:<userId>, so without this
+    // a demoted member keeps their old role for the life of that entry.
+    await this.projectAccessService.bustMembershipCache(projectId, updated.userId);
+
     void this.auditService.log({
       action: 'project.member_role_updated',
       actorId,
@@ -356,6 +361,11 @@ export class ProjectsService {
     await this.prismaService.projectMember.delete({
       where: { id: memberId },
     });
+
+    // Same reason as updateMemberRole: a removed member whose membership is
+    // cached still passes assertAccess until the entry expires. Only positive
+    // lookups are cached, so adding a member needs no equivalent.
+    await this.projectAccessService.bustMembershipCache(projectId, member.userId);
 
     void this.auditService.log({
       action: 'project.member_removed',
