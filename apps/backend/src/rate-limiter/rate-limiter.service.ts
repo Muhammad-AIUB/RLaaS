@@ -12,6 +12,7 @@ import { ApiKeysService } from '../api-keys/api-keys.service';
 import { AlgorithmRegistryService } from '../algorithms/algorithm-registry.service';
 import { RateLimitAlgorithm } from '../algorithms/algorithm.enum';
 import { RateLimitResult } from '../algorithms/interfaces/rate-limit-result.interface';
+import { measure } from '../common/timing/request-timing';
 import { GatewayCheckDto } from '../gateway/dto/gateway-check.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
@@ -132,7 +133,9 @@ export class RateLimiterService {
 
   async checkRequest(dto: GatewayCheckDto): Promise<GatewayCheckResult> {
     const redis = this.redisService.getClient();
-    const validation = await this.validateApiKey(dto.apiKey);
+    const validation = await measure('apikey', () =>
+      this.validateApiKey(dto.apiKey),
+    );
 
     if (!validation.ok) {
       return validation.response;
@@ -151,7 +154,7 @@ export class RateLimiterService {
       : null;
 
     if (idempotencyCacheKey) {
-      const cached = await redis.get(idempotencyCacheKey);
+      const cached = await measure('idem', () => redis.get(idempotencyCacheKey));
 
       if (cached) {
         const parsed = JSON.parse(cached) as GatewayCheckResult;
@@ -163,12 +166,14 @@ export class RateLimiterService {
     }
 
     const rule =
-      (await this.rulesService.findMatchingRule({
-        projectId: apiKey.projectId,
-        apiKeyId: apiKey.id,
-        apiKeyPrefix: apiKey.keyPrefix,
-        request: dto,
-      })) ?? this.buildDefaultRule();
+      (await measure('rules', () =>
+        this.rulesService.findMatchingRule({
+          projectId: apiKey.projectId,
+          apiKeyId: apiKey.id,
+          apiKeyPrefix: apiKey.keyPrefix,
+          request: dto,
+        }),
+      )) ?? this.buildDefaultRule();
 
     const key = this.buildRateLimitKey(
       { ...dto, method: normalizedMethod, userTier: normalizedTier },
@@ -176,12 +181,14 @@ export class RateLimiterService {
       apiKey.projectId,
     );
 
-    const result = await this.algorithmRegistryService.get(rule.algorithm).consume({
-      key,
-      limit: rule.limit,
-      windowSeconds: rule.windowSeconds,
-      algorithm: rule.algorithm,
-    });
+    const result = await measure('redis', () =>
+      this.algorithmRegistryService.get(rule.algorithm).consume({
+        key,
+        limit: rule.limit,
+        windowSeconds: rule.windowSeconds,
+        algorithm: rule.algorithm,
+      }),
+    );
 
     const response: GatewayCheckResult = {
       ...result,
@@ -202,11 +209,13 @@ export class RateLimiterService {
     });
 
     if (idempotencyCacheKey) {
-      await redis.set(
-        idempotencyCacheKey,
-        JSON.stringify(response),
-        'EX',
-        Number(this.configService.get('IDEMPOTENCY_TTL_SECONDS', 300)),
+      await measure('idem', () =>
+        redis.set(
+          idempotencyCacheKey,
+          JSON.stringify(response),
+          'EX',
+          Number(this.configService.get('IDEMPOTENCY_TTL_SECONDS', 300)),
+        ),
       );
     }
 

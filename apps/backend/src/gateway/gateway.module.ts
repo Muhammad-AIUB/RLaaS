@@ -1,5 +1,6 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { AlgorithmsModule } from '../algorithms/algorithms.module';
+import { RequestTimingMiddleware } from '../common/middleware/request-timing.middleware';
 import { RateLimiterModule } from '../rate-limiter/rate-limiter.module';
 import { GatewayController } from './gateway.controller';
 
@@ -7,4 +8,8 @@ import { GatewayController } from './gateway.controller';
   imports: [RateLimiterModule, AlgorithmsModule],
   controllers: [GatewayController],
 })
-export class GatewayModule {}
+export class GatewayModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestTimingMiddleware).forRoutes(GatewayController);
+  }
+}
