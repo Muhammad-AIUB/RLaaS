@@ -27,13 +27,11 @@ services:
         value: "false"
       - key: SEED_DEMO_EMAIL
         value: demo@rlaas.local
-      - key: SEED_DEMO_PASSWORD
-        value: DemoPass123!
       - key: SEED_DEMO_FULL_NAME
         value: RLaaS Demo User
-      - key: SEED_RAW_API_KEY
-        value: rlaas_live_demo_seed_key_1234567890
-      # Set these in the Render dashboard (Environment tab):
+      # Set these in the Render dashboard (Environment tab). Nothing secret
+      # belongs in this file: it is committed, so a value here is a value in
+      # git history forever.
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
@@ -41,4 +39,11 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: API_KEY_HASH_PEPPER
+        sync: false
+      # Credentials of the seeded demo account. Previously literals in this
+      # file. The seed skips the demo user without SEED_DEMO_PASSWORD, and
+      # skips the demo API key without SEED_RAW_API_KEY.
+      - key: SEED_DEMO_PASSWORD
+        sync: false
+      - key: SEED_RAW_API_KEY
         sync: false

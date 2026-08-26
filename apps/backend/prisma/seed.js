@@ -10,9 +10,12 @@ const {
   RequestDecision,
 } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
-const { createHmac, randomBytes } = require('crypto');
+const { createHmac } = require('crypto');
 
 const prisma = new PrismaClient();
+
+// Matches what toSlug() would produce for 'Demo API Project'.
+const DEMO_PROJECT_SLUG = 'demo-api-project';
 
 function hashApiKey(value) {
   const pepper = process.env.API_KEY_HASH_PEPPER || process.env.JWT_SECRET || 'change-me';
@@ -38,14 +41,26 @@ async function main() {
   });
   console.log(`Demo user upserted: ${email}`);
 
-  // Upsert demo project
+  // Upsert demo project.
+  //
+  // `ownerId` and `slug` are both required by the schema (slug is @unique), and
+  // neither was supplied here: on an empty database this create threw, the seed
+  // exited non-zero, and because the Render start command is
+  // `migrate deploy && db seed && node dist/main`, the API never booted at all.
+  // Provisioning a fresh database was impossible.
   let project = await prisma.project.findFirst({
     where: { name: 'Demo API Project', members: { some: { userId: user.id } } },
   });
   if (!project) {
-    project = await prisma.project.create({
-      data: {
+    // Upsert on the unique column rather than create, so a re-run against a
+    // database that already holds the slug adopts that row instead of throwing.
+    project = await prisma.project.upsert({
+      where: { slug: DEMO_PROJECT_SLUG },
+      update: {},
+      create: {
+        ownerId: user.id,
         name: 'Demo API Project',
+        slug: DEMO_PROJECT_SLUG,
         description: 'A sample project showing rate limiting in action.',
         members: { create: { userId: user.id, role: ProjectRole.OWNER } },
       },
@@ -106,24 +121,34 @@ async function main() {
     console.log('Demo rules created');
   }
 
-  // Upsert demo API key
-  const rawKey = process.env.SEED_RAW_API_KEY || `rlaas_live_${randomBytes(24).toString('hex')}`;
-  const keyPrefix = rawKey.slice(0, 18);
-  const hashedKey = hashApiKey(rawKey);
+  // Upsert demo API key.
+  //
+  // Only when SEED_RAW_API_KEY is set. The previous fallback minted a random key
+  // whose plaintext was printed nowhere, so every deploy left one more unusable
+  // API key row behind. Now that the value is no longer committed in
+  // render.yaml, that fallback would have run on every single deploy.
+  const rawKey = process.env.SEED_RAW_API_KEY;
 
-  await prisma.apiKey.upsert({
-    where: { hashedKey },
-    update: {},
-    create: {
-      projectId: project.id,
-      name: 'Demo Key',
-      keyPrefix,
-      hashedKey,
-      hashVersion: 'hmac-sha256-v1',
-      expiresAt: null,
-    },
-  });
-  console.log(`Demo API key upserted: ${keyPrefix}...`);
+  if (rawKey) {
+    const keyPrefix = rawKey.slice(0, 18);
+    const hashedKey = hashApiKey(rawKey);
+
+    await prisma.apiKey.upsert({
+      where: { hashedKey },
+      update: {},
+      create: {
+        projectId: project.id,
+        name: 'Demo Key',
+        keyPrefix,
+        hashedKey,
+        hashVersion: 'hmac-sha256-v1',
+        expiresAt: null,
+      },
+    });
+    console.log(`Demo API key upserted: ${keyPrefix}...`);
+  } else {
+    console.log('Demo API key skipped: SEED_RAW_API_KEY not set.');
+  }
 
   // Seed a small batch of realistic request logs (skip if already present)
   const logCount = await prisma.requestLog.count({ where: { projectId: project.id } });
