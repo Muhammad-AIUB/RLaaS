@@ -18,7 +18,16 @@ const prisma = new PrismaClient();
 const DEMO_PROJECT_SLUG = 'demo-api-project';
 
 function hashApiKey(value) {
-  const pepper = process.env.API_KEY_HASH_PEPPER || process.env.JWT_SECRET || 'change-me';
+  // Same resolution as ApiKeysService, and the same refusal to invent a pepper:
+  // seeding with 'change-me' wrote a hash the running API could never match.
+  const pepper = process.env.API_KEY_HASH_PEPPER || process.env.JWT_SECRET;
+
+  if (!pepper) {
+    throw new Error(
+      'Cannot hash the demo API key: set API_KEY_HASH_PEPPER (or JWT_SECRET).',
+    );
+  }
+
   return createHmac('sha256', pepper).update(value).digest('hex');
 }
 

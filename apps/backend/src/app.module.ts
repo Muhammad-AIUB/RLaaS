@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { ConfigModule } from '@nestjs/config';
+import { validateEnv } from './config/env.validation';
 import { AlgorithmsModule } from './algorithms/algorithms.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { AuthModule } from './auth/auth.module';
@@ -20,6 +21,9 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
+      // Throws during module init if a required secret is missing, so the
+      // process never reaches listen() in a misconfigured environment.
+      validate: validateEnv,
     }),
     PrismaModule,
     RedisModule,

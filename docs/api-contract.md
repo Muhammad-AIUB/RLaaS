@@ -687,14 +687,24 @@ routing.
 the idempotency-free variant of the same rule/consume/persist sequence, so the two will
 drift.
 
-### GAP-19 — Config defaults ship insecure
+### GAP-19 — Config defaults shipped insecure — FIXED
 
-`JWT_SECRET` defaults to `change-me` in code (`auth.module.ts:21`, `jwt.strategy.ts:13`)
-and in `.env.example:5`. `API_KEY_HASH_PEPPER` falls back to `JWT_SECRET`, then to
-`change-me` (`api-keys.service.ts:203-205`), so the API-key pepper is the JWT secret
-unless explicitly set. `render.yaml:36-44` correctly marks both `sync: false`, but a
-local or self-hosted deploy that skips them starts with a known secret and forgeable
-tokens.
+**Was:** `JWT_SECRET` defaulted to `change-me` in `auth.module.ts` and
+`jwt.strategy.ts`, and `API_KEY_HASH_PEPPER` fell back to `JWT_SECRET` and then to
+`change-me` in `api-keys.service.ts` (and in `prisma/seed.js`). A deploy that skipped
+both variables started anyway, with a signing secret published in this repository —
+tokens for any user id could be forged.
+
+**Now:** no fallback anywhere. `config/env.validation.ts` runs as `ConfigModule`'s
+`validate` and refuses to start unless `JWT_SECRET` and `API_KEY_HASH_PEPPER` are both
+set and non-blank; `auth.module.ts` and `jwt.strategy.ts` use `getOrThrow`; `main.ts`
+exits non-zero when bootstrap rejects (`ConfigModule.forRoot` is async, so the failure
+arrives as a rejected promise, not a synchronous throw).
+
+**Operational note:** `API_KEY_HASH_PEPPER` used to be optional, and where it was unset
+the stored API-key hashes were peppered with `JWT_SECRET`. Setting it to a *new* value
+therefore invalidates every existing key. The refusal message says so. Environments that
+relied on the fallback must set it to the same value as `JWT_SECRET`.
 
 ### GAP-20 — Assorted contract inconsistencies
 

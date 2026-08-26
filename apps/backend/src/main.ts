@@ -62,4 +62,21 @@ async function bootstrap() {
   await app.listen(process.env.PORT ?? 3000);
 }
 
-bootstrap();
+/**
+ * A failed bootstrap must end the process, not leave it half-alive.
+ *
+ * `ConfigModule.forRoot()` is async, so the env validation in
+ * config/env.validation.ts surfaces as a rejected NestFactory.create() rather
+ * than a synchronous throw. Without this catch that rejection would reach the
+ * unhandledRejection handler above, get logged, and the process would linger
+ * with nothing listening. Exit non-zero so the platform restarts or reports it.
+ */
+bootstrap().catch((error: unknown) => {
+  logger.error(
+    `Failed to start: ${
+      error instanceof Error ? error.message : String(error)
+    }`,
+    error instanceof Error ? error.stack : undefined,
+  );
+  process.exit(1);
+});

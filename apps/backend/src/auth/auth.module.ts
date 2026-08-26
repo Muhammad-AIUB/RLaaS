@@ -18,7 +18,10 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET', 'change-me'),
+        // No default: an unset JWT_SECRET must stop the process, not sign
+        // tokens with a value published in this repository. AppModule's
+        // validateEnv catches it first; this is the second line of defence.
+        secret: configService.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
           expiresIn: (configService.get<string>('JWT_EXPIRES_IN') ?? '1d') as never,
         },

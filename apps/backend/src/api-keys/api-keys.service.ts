@@ -221,7 +221,21 @@ export class ApiKeysService {
     return createHmac('sha256', this.resolveHashPepper()).update(value).digest('hex');
   }
 
+  /**
+   * Both variables are required at boot (see config/env.validation.ts), so this
+   * cannot fall through. The JWT_SECRET fallback is kept because it is what the
+   * existing hashes were peppered with wherever API_KEY_HASH_PEPPER was unset —
+   * changing the resolution order would invalidate every stored key.
+   */
   private resolveHashPepper() {
-    return process.env.API_KEY_HASH_PEPPER || process.env.JWT_SECRET || 'change-me';
+    const pepper = process.env.API_KEY_HASH_PEPPER || process.env.JWT_SECRET;
+
+    if (!pepper) {
+      throw new Error(
+        'API_KEY_HASH_PEPPER (or JWT_SECRET) must be set to hash API keys.',
+      );
+    }
+
+    return pepper;
   }
 }
