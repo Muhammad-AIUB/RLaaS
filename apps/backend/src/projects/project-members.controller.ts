@@ -17,6 +17,7 @@ import type { RequestMetadata } from '../common/interfaces/request-metadata.inte
 import { AddProjectMemberDto } from './dto/add-project-member.dto';
 import { UpdateProjectMemberRoleDto } from './dto/update-project-member-role.dto';
 import { ProjectsService } from './projects.service';
+import { UuidParam } from '../common/pipes/uuid-param.pipe';
 
 @ApiTags('project-members')
 @ApiBearerAuth()
@@ -29,7 +30,7 @@ export class ProjectMembersController {
   @ApiOperation({ summary: 'List project members and roles' })
   list(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
   ) {
     return this.projectsService.listMembers(user.sub, projectId);
   }
@@ -38,7 +39,7 @@ export class ProjectMembersController {
   @ApiOperation({ summary: 'Add a user to a project with a role' })
   add(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Body() dto: AddProjectMemberDto,
     @RequestMeta() request: RequestMetadata,
   ) {
@@ -49,8 +50,8 @@ export class ProjectMembersController {
   @ApiOperation({ summary: 'Update a project member role' })
   updateRole(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
-    @Param('memberId') memberId: string,
+    @Param('projectId', UuidParam) projectId: string,
+    @Param('memberId', UuidParam) memberId: string,
     @Body() dto: UpdateProjectMemberRoleDto,
     @RequestMeta() request: RequestMetadata,
   ) {
@@ -67,8 +68,8 @@ export class ProjectMembersController {
   @ApiOperation({ summary: 'Remove a project member' })
   remove(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
-    @Param('memberId') memberId: string,
+    @Param('projectId', UuidParam) projectId: string,
+    @Param('memberId', UuidParam) memberId: string,
     @RequestMeta() request: RequestMetadata,
   ) {
     return this.projectsService.removeMember(user.sub, projectId, memberId, request);

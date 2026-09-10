@@ -7,6 +7,7 @@ import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.
 import { ProjectsService } from '../projects/projects.service';
 import { AuditQueryDto } from './dto/audit-query.dto';
 import { AuditService } from './audit.service';
+import { UuidParam } from '../common/pipes/uuid-param.pipe';
 
 @ApiTags('audit-logs')
 @ApiBearerAuth()
@@ -22,7 +23,7 @@ export class AuditController {
   @ApiOperation({ summary: 'List sensitive audit log events for a project' })
   async list(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Query() query: AuditQueryDto,
   ) {
     await this.projectsService.assertProjectAccess(user.sub, projectId, [

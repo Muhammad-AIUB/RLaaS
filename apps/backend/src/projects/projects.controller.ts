@@ -17,6 +17,7 @@ import type { RequestMetadata } from '../common/interfaces/request-metadata.inte
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { ProjectsService } from './projects.service';
+import { UuidParam } from '../common/pipes/uuid-param.pipe';
 
 @ApiTags('projects')
 @ApiBearerAuth()
@@ -45,7 +46,7 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Get project details' })
   getById(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
   ) {
     return this.projectsService.getById(user.sub, projectId);
   }
@@ -54,7 +55,7 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Update a project' })
   update(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Body() dto: UpdateProjectDto,
     @RequestMeta() request: RequestMetadata,
   ) {
@@ -65,7 +66,7 @@ export class ProjectsController {
   @ApiOperation({ summary: 'Delete a project' })
   remove(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @RequestMeta() request: RequestMetadata,
   ) {
     return this.projectsService.delete(user.sub, projectId, request);

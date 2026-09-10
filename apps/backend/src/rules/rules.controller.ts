@@ -18,6 +18,7 @@ import { CreateRuleDto } from './dto/create-rule.dto';
 import { SimulateRuleDto } from './dto/simulate-rule.dto';
 import { UpdateRuleDto } from './dto/update-rule.dto';
 import { RulesService } from './rules.service';
+import { UuidParam } from '../common/pipes/uuid-param.pipe';
 
 @ApiTags('rules')
 @ApiBearerAuth()
@@ -30,7 +31,7 @@ export class RulesController {
   @ApiOperation({ summary: 'Create a rate-limit rule for a project' })
   create(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Body() dto: CreateRuleDto,
     @RequestMeta() request: RequestMetadata,
   ) {
@@ -41,7 +42,7 @@ export class RulesController {
   @ApiOperation({ summary: 'List rules for a project' })
   list(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
   ) {
     return this.rulesService.listByProject(user.sub, projectId);
   }
@@ -50,7 +51,7 @@ export class RulesController {
   @ApiOperation({ summary: 'Simulate a rule against isolated counters before enabling it' })
   simulate(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Body() dto: SimulateRuleDto,
     @RequestMeta() request: RequestMetadata,
   ) {
@@ -61,8 +62,8 @@ export class RulesController {
   @ApiOperation({ summary: 'Update a rate-limit rule' })
   update(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
-    @Param('ruleId') ruleId: string,
+    @Param('projectId', UuidParam) projectId: string,
+    @Param('ruleId', UuidParam) ruleId: string,
     @Body() dto: UpdateRuleDto,
     @RequestMeta() request: RequestMetadata,
   ) {
@@ -73,8 +74,8 @@ export class RulesController {
   @ApiOperation({ summary: 'Delete a rate-limit rule' })
   remove(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
-    @Param('ruleId') ruleId: string,
+    @Param('projectId', UuidParam) projectId: string,
+    @Param('ruleId', UuidParam) ruleId: string,
     @RequestMeta() request: RequestMetadata,
   ) {
     return this.rulesService.delete(user.sub, projectId, ruleId, request);

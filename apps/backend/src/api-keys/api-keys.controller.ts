@@ -15,6 +15,7 @@ import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.
 import type { RequestMetadata } from '../common/interfaces/request-metadata.interface';
 import { ApiKeysService } from './api-keys.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
+import { UuidParam } from '../common/pipes/uuid-param.pipe';
 
 @ApiTags('api-keys')
 @ApiBearerAuth()
@@ -27,7 +28,7 @@ export class ApiKeysController {
   @ApiOperation({ summary: 'Generate a new API key for a project' })
   create(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Body() dto: CreateApiKeyDto,
     @RequestMeta() request: RequestMetadata,
   ) {
@@ -38,7 +39,7 @@ export class ApiKeysController {
   @ApiOperation({ summary: 'List API keys for a project' })
   list(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
   ) {
     return this.apiKeysService.listByProject(user.sub, projectId);
   }
@@ -47,8 +48,8 @@ export class ApiKeysController {
   @ApiOperation({ summary: 'Revoke an API key for a project' })
   revoke(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
-    @Param('apiKeyId') apiKeyId: string,
+    @Param('projectId', UuidParam) projectId: string,
+    @Param('apiKeyId', UuidParam) apiKeyId: string,
     @RequestMeta() request: RequestMetadata,
   ) {
     return this.apiKeysService.revoke(user.sub, projectId, apiKeyId, request);

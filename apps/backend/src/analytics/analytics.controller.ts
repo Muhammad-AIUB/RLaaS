@@ -14,6 +14,7 @@ import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { CreateSnapshotDto } from './dto/create-snapshot.dto';
 import { AnalyticsService } from './analytics.service';
+import { UuidParam } from '../common/pipes/uuid-param.pipe';
 
 @ApiTags('analytics')
 @ApiBearerAuth()
@@ -26,7 +27,7 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get dashboard overview metrics for a project' })
   getOverview(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Query() query: AnalyticsQueryDto,
   ) {
     return this.analyticsService.getOverview(user.sub, projectId, query);
@@ -36,7 +37,7 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get top offending IPs for a project' })
   getTopIps(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Query() query: AnalyticsQueryDto,
   ) {
     return this.analyticsService.getTopIps(user.sub, projectId, query);
@@ -46,7 +47,7 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get most used endpoints for a project' })
   getTopEndpoints(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Query() query: AnalyticsQueryDto,
   ) {
     return this.analyticsService.getTopEndpoints(user.sub, projectId, query);
@@ -56,7 +57,7 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get algorithm performance comparison for a project' })
   getAlgorithmPerformance(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Query() query: AnalyticsQueryDto,
   ) {
     return this.analyticsService.getAlgorithmPerformance(
@@ -70,7 +71,7 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Get recent request logs for a project' })
   getRecentLogs(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Query() query: AnalyticsQueryDto,
   ) {
     return this.analyticsService.getRecentLogs(user.sub, projectId, query);
@@ -80,7 +81,7 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Generate or refresh an analytics snapshot' })
   createSnapshot(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Body() dto: CreateSnapshotDto,
   ) {
     return this.analyticsService.createSnapshot(user.sub, projectId, dto);
@@ -90,7 +91,7 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'List saved analytics snapshots for a project' })
   listSnapshots(
     @CurrentUser() user: AuthenticatedUser,
-    @Param('projectId') projectId: string,
+    @Param('projectId', UuidParam) projectId: string,
     @Query() query: AnalyticsQueryDto,
   ) {
     return this.analyticsService.listSnapshots(user.sub, projectId, query);
