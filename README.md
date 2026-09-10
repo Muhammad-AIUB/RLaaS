@@ -53,14 +53,13 @@ RLaaS addresses that by separating policy management from runtime enforcement:
 - Real demo app in `examples/express-demo`
 - `k6` load testing for `POST /api/v1/gateway/check`
 - Algorithm benchmark runner
-- Docker Compose for local platform startup
 
 ## Tech stack
 
 - Backend: NestJS, TypeScript, Prisma, PostgreSQL, Redis, ioredis
 - Frontend: Next.js, TypeScript, Tailwind CSS, Recharts
 - SDK: TypeScript, Express middleware
-- Infra: Docker Compose
+- Infra: Render (`render.yaml`), local Redis, any Postgres
 - Tooling: pnpm workspace, Jest, k6, tsx
 
 ## Architecture diagram
@@ -99,8 +98,8 @@ metadata |          | counters
 ```text
 rlaas-platform/
 |-- apps/
-|   |-- api/          NestJS backend API and gateway
-|   `-- dashboard/    Next.js operator dashboard
+|   |-- backend/      NestJS backend API and gateway
+|   `-- frontend/     Next.js operator dashboard
 |-- packages/
 |   |-- express-sdk/  Reusable Express middleware SDK
 |   `-- shared-types/ Shared contracts used by the SDK and platform
@@ -124,32 +123,50 @@ pnpm install
 ### 2. Prepare environment files
 
 ```bash
-copy apps\api\.env.example apps\api\.env
-copy apps\dashboard\.env.example apps\dashboard\.env.local
-copy examples\express-demo\.env.example examples\express-demo\.env
+cp apps/backend/.env.example apps/backend/.env
+cp apps/frontend/.env.example apps/frontend/.env.local
+cp examples/express-demo/.env.example examples/express-demo/.env
 ```
 
-### 3. Start the local stack
+Then set `JWT_SECRET` and `API_KEY_HASH_PEPPER` in `apps/backend/.env`. Both are
+required and have no default: the API refuses to start without them, on purpose
+(see `apps/backend/src/config/env.validation.ts`). If you are upgrading a
+deployment where `API_KEY_HASH_PEPPER` was never set, give it the same value as
+`JWT_SECRET` — that is what existing API key hashes were peppered with, and any
+other value invalidates every stored key.
+
+### 3. Start Postgres and Redis
+
+There is no compose file in this repository. Point `DATABASE_URL` at any
+Postgres (a hosted one is fine) and run Redis locally:
 
 ```bash
-docker compose up --build
+docker run --rm -p 6379:6379 redis:7-alpine
 ```
+
+`redis-server` works just as well if you already have Redis installed.
 
 ### 4. Generate Prisma client, migrate, and run the seed step
 
 ```bash
-pnpm --filter @rlaas/api prisma:generate
-pnpm --filter @rlaas/api prisma:migrate:dev
-pnpm --filter @rlaas/api db:seed
+pnpm --filter @rlaas/backend prisma:generate
+pnpm --filter @rlaas/backend prisma:migrate:dev
+pnpm --filter @rlaas/backend db:seed
 ```
 
 The seed step is intentionally a no-op and does not create demo or mock data.
 
-### 5. Open the platform
+### 5. Run the apps
+
+```bash
+pnpm dev:backend
+pnpm dev:frontend
+```
+
+### 6. Open the platform
 
 - Dashboard: `http://localhost:3001`
 - API: `http://localhost:3000`
-- Swagger: `http://localhost:3000/docs`
 - Swagger: `http://localhost:3000/docs`
 - Health: `http://localhost:3000/api/v1/health`
 
@@ -255,9 +272,9 @@ Measured dimensions:
 ## Helpful commands
 
 ```bash
-pnpm --filter @rlaas/api build
-pnpm --filter @rlaas/api test -- --runInBand
-pnpm --filter @rlaas/dashboard build
+pnpm --filter @rlaas/backend build
+pnpm test
+pnpm --filter @rlaas/frontend build
 pnpm --filter @rlaas/shared-types build
 pnpm --filter @rlaas/express-sdk build
 pnpm --filter @rlaas/express-demo build
