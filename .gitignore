@@ -5,6 +5,8 @@ dist/
 .next/
 coverage/
 *.log
+# Git-Bash/MSYS crash dumps — diagnostic noise, dropped in the repo root
+*.stackdump
 # TypeScript incremental build caches — rewritten by every tsc/next build run
 *.tsbuildinfo
 apps/backend/.env
