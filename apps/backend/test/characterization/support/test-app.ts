@@ -17,6 +17,7 @@
 import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
+import { ThrottlerStorage } from '@nestjs/throttler';
 import { createHmac } from 'crypto';
 import type Redis from 'ioredis';
 import { AppModule } from '../../../src/app.module';
@@ -30,6 +31,15 @@ export interface CharacterizationContext {
   prisma: FakePrisma;
   redis: Redis;
   jwt: JwtService;
+  /**
+   * Clears the auth throttle's counters.
+   *
+   * ThrottlerModule keeps them in process memory, not in Redis, so
+   * `redis.flushdb()` does not touch them and a test that spends the budget
+   * leaves every later test in the same minute answering 429. Call this in
+   * beforeEach alongside the Redis flush.
+   */
+  resetThrottle: () => void;
   close: () => Promise<void>;
 }
 
@@ -64,12 +74,22 @@ export async function createCharacterizationApp(): Promise<CharacterizationConte
 
   const redis = app.get(RedisService).getClient();
   const jwt = app.get(JwtService);
+  // `_storage` is a Map, not a plain object. Treating it as a record silently
+  // does nothing, and the throttle then leaks a spent budget between tests.
+  const throttlerStorage = app.get<{ _storage?: Map<string, unknown> }>(
+    ThrottlerStorage,
+    { strict: false },
+  );
 
   return {
     app,
     prisma,
     redis,
     jwt,
+    resetThrottle: () => {
+      // Reaching into `_storage` on purpose: the interface exposes no clear().
+      throttlerStorage?._storage?.clear();
+    },
     close: async () => {
       await app.close();
     },

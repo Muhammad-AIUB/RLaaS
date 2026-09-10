@@ -1,7 +1,8 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequestMeta } from '../common/decorators/request-metadata.decorator';
 import type { RequestMetadata } from '../common/interfaces/request-metadata.interface';
+import { AuthThrottlerGuard } from './guards/auth-throttler.guard';
 import { Public } from './decorators/public.decorator';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -10,6 +11,12 @@ import { RegisterDto } from './dto/register.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @ApiTags('auth')
+/**
+ * Every route here is unauthenticated by design, so the per-IP throttle is the
+ * only thing standing between an attacker and unlimited attempts. Applied at
+ * the controller so a route added later inherits it instead of being forgotten.
+ */
+@UseGuards(AuthThrottlerGuard)
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

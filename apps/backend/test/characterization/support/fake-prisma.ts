@@ -75,6 +75,7 @@ function sortRows(rows: Row[], orderBy?: Row | Row[]): Row[] {
 }
 
 export class FakePrisma {
+  readonly users: Row[] = [];
   readonly apiKeys: Row[] = [];
   readonly rules: Row[] = [];
   readonly members: Row[] = [];
@@ -84,6 +85,7 @@ export class FakePrisma {
   readonly webhookEndpoints: Row[] = [];
 
   reset(): void {
+    this.users.length = 0;
     this.apiKeys.length = 0;
     this.rules.length = 0;
     this.members.length = 0;
@@ -99,6 +101,58 @@ export class FakePrisma {
   async $connect(): Promise<void> {}
   async $disconnect(): Promise<void> {}
   $on(): void {}
+
+  /* ---- users ----
+   *
+   * Added so the auth surface can be characterized at all. Without it, every
+   * flow that touches a user (login, register, the password reset) was
+   * untestable, which is how a reset-code brute force and an unaudited login
+   * failure path both stayed invisible behind a green suite.
+   *
+   * Mirrors the four call sites in UsersService: create, findUnique by email,
+   * findUnique by id, and update by email.
+   */
+  user = {
+    create: async (args: Row): Promise<Row> => {
+      const now = new Date();
+      const row: Row = {
+        id: randomUUID(),
+        tier: 'FREE',
+        isActive: true,
+        ...defined(args.data),
+        // The service lowercases on read, so store it lowercased on write or
+        // findUnique never matches what create just inserted.
+        email: String(args?.data?.email ?? '').toLowerCase(),
+        createdAt: now,
+        updatedAt: now,
+      };
+      this.users.push(row);
+      return row;
+    },
+
+    findUnique: async (args: Row): Promise<Row | null> => {
+      const where = args?.where ?? {};
+
+      if (typeof where.email === 'string') {
+        const email = where.email.toLowerCase();
+        return this.users.find((row) => row.email === email) ?? null;
+      }
+
+      if (typeof where.id === 'string') {
+        return this.users.find((row) => row.id === where.id) ?? null;
+      }
+
+      return unsupported('user', 'findUnique', args);
+    },
+
+    update: async (args: Row): Promise<Row> => {
+      const email = String(args?.where?.email ?? '').toLowerCase();
+      const row = this.users.find((candidate) => candidate.email === email);
+      if (!row) unsupported('user', 'update', args);
+      Object.assign(row, defined(args.data), { updatedAt: new Date() });
+      return row;
+    },
+  };
 
   /* ---- api_keys ---- */
   apiKey = {

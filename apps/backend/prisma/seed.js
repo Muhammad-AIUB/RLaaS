@@ -40,7 +40,8 @@ async function main() {
     return;
   }
 
-  const passwordHash = await bcrypt.hash(password, 8);
+  // Matches BCRYPT_COST in auth.service.ts; 8 was below current guidance.
+  const passwordHash = await bcrypt.hash(password, 12);
   const fullName = process.env.SEED_DEMO_FULL_NAME || 'Guest Demo';
 
   const user = await prisma.user.upsert({
