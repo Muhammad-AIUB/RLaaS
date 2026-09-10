@@ -123,28 +123,34 @@ describe('limit leakage under concurrency', () => {
     it('lets exactly 10 of 100 simultaneous requests through', async () => {
       seedRule(RuleAlgorithm.FIXED_WINDOW);
 
-      // A burst that is secretly serial would prove nothing, so measure how
-      // many requests are inside the limiter path at the same moment. The rule
-      // lookup sits immediately before consume(), so its depth is the overlap
-      // the Lua script actually sees.
+      // A burst that is secretly serial would prove nothing, so measure how many
+      // requests are genuinely being served at the same moment: the span from
+      // the server accepting a request to it closing the response, which
+      // contains the Redis round trip the limiter actually runs in.
+      //
+      // This used to wrap the in-memory rule lookup instead and assert its
+      // depth. That counted how many handlers resumed in a single microtask
+      // drain, which is just how many Redis replies arrived in one TCP data
+      // event: ~64 against a loopback Redis, 5 against a containerised one on a
+      // 2-vCPU CI runner. It measured the transport, not the limiter, so CI
+      // failed on a machine where the limiter was behaving perfectly.
       let inFlight = 0;
       let peakInFlight = 0;
-      const findMany = ctx.prisma.rateLimitRule.findMany;
-      ctx.prisma.rateLimitRule.findMany = (async (args: any) => {
+      const server = ctx.app.getHttpServer();
+      const observe = (_request: unknown, response: { on: (event: string, listener: () => void) => void }) => {
         inFlight += 1;
         peakInFlight = Math.max(peakInFlight, inFlight);
-        try {
-          return await findMany(args);
-        } finally {
+        response.on('close', () => {
           inFlight -= 1;
-        }
-      }) as typeof findMany;
+        });
+      };
+      server.on('request', observe);
 
       let responses;
       try {
         responses = await burst('/api/products');
       } finally {
-        ctx.prisma.rateLimitRule.findMany = findMany;
+        server.off('request', observe);
       }
 
       // More requests were in flight at once than the limit itself, which is
