@@ -9,6 +9,7 @@ import { AuditService } from '../audit/audit.service';
 import { GatewayCheckDto } from '../gateway/dto/gateway-check.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
+import { RedisService } from '../redis/redis.service';
 import { RulesService } from './rules.service';
 
 describe('RulesService', () => {
@@ -22,15 +23,30 @@ describe('RulesService', () => {
   const projectsService = {} as ProjectsService;
   const algorithmRegistryService = {} as AlgorithmRegistryService;
   const auditService = {} as AuditService;
+
+  // A cold cache, so precedence is exercised against the Postgres path these
+  // cases are written for. The warm path is covered end to end by the
+  // characterization suite against a real Redis.
+  const redisGetMock = jest.fn().mockResolvedValue(null);
+  const redisService = {
+    getClient: () => ({
+      get: redisGetMock,
+      setex: jest.fn().mockResolvedValue('OK'),
+      del: jest.fn().mockResolvedValue(1),
+    }),
+  } as unknown as RedisService;
+
   const service = new RulesService(
     prismaService,
     projectsService,
     algorithmRegistryService,
     auditService,
+    redisService,
   );
 
   beforeEach(() => {
     findManyMock.mockReset();
+    redisGetMock.mockClear();
   });
 
   it('prefers IP rules over lower-precedence matches', async () => {
@@ -83,7 +99,7 @@ describe('RulesService', () => {
       apiKey: 'rlaas_live_test',
       ip: '203.0.113.10',
       endpoint: '/api/products/123',
-      method: 'GET',
+      method: HttpMethod.GET,
       userTier: 'free',
     };
 
@@ -138,7 +154,7 @@ describe('RulesService', () => {
       apiKey: 'rlaas_live_test',
       ip: '198.51.100.10',
       endpoint: '/api/products',
-      method: 'GET',
+      method: HttpMethod.GET,
       userTier: 'free',
     };
 
