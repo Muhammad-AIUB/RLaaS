@@ -17,7 +17,7 @@ import {
 describe('POST /api/v1/gateway/demo-check', () => {
   let ctx: CharacterizationContext;
 
-  const post = (body: unknown) =>
+  const post = (body: object) =>
     request(ctx.app.getHttpServer()).post('/api/v1/gateway/demo-check').send(body);
 
   beforeAll(async () => {
@@ -56,7 +56,7 @@ describe('POST /api/v1/gateway/demo-check', () => {
 
   it('allows exactly five requests, then blocks', async () => {
     const identifier = 'demo_session_b';
-    const results = [];
+    const results: Array<{ allowed: boolean; remaining: number }> = [];
 
     for (let index = 0; index < 6; index += 1) {
       const response = await post({ algorithm: 'fixed_window', identifier });

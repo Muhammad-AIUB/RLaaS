@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
+import { RedisService } from '../redis/redis.service';
 import { AnalyticsService } from './analytics.service';
 
 describe('AnalyticsService', () => {
@@ -35,7 +36,21 @@ describe('AnalyticsService', () => {
     assertProjectAccess: assertProjectAccessMock,
   } as unknown as ProjectsService;
 
-  const service = new AnalyticsService(prismaService, projectsService);
+  // Cold cache, so these cases exercise the Postgres aggregation they were
+  // written for rather than a warm Redis entry.
+  const redisService = {
+    getClient: () => ({
+      get: jest.fn().mockResolvedValue(null),
+      setex: jest.fn().mockResolvedValue('OK'),
+      del: jest.fn().mockResolvedValue(1),
+    }),
+  } as unknown as RedisService;
+
+  const service = new AnalyticsService(
+    prismaService,
+    projectsService,
+    redisService,
+  );
 
   beforeEach(() => {
     countMock.mockReset();

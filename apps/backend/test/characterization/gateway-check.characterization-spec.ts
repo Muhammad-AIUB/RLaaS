@@ -27,7 +27,7 @@ const RAW_KEY = 'rlaas_live_characterization_key';
 describe('POST /api/v1/gateway/check', () => {
   let ctx: CharacterizationContext;
 
-  const post = (body: unknown) =>
+  const post = (body: object) =>
     request(ctx.app.getHttpServer()).post('/api/v1/gateway/check').send(body);
 
   const validRequest = (overrides: Record<string, unknown> = {}) => ({

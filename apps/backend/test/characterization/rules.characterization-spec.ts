@@ -38,7 +38,7 @@ describe('/api/v1/projects/:projectId/rules', () => {
   const base = `/api/v1/projects/${PROJECT_ID}/rules`;
 
   const asUser = (token: string) => ({
-    post: (path: string, body?: unknown) =>
+    post: (path: string, body?: object) =>
       request(ctx.app.getHttpServer())
         .post(path)
         .set('Authorization', `Bearer ${token}`)
@@ -47,7 +47,7 @@ describe('/api/v1/projects/:projectId/rules', () => {
       request(ctx.app.getHttpServer())
         .get(path)
         .set('Authorization', `Bearer ${token}`),
-    patch: (path: string, body?: unknown) =>
+    patch: (path: string, body?: object) =>
       request(ctx.app.getHttpServer())
         .patch(path)
         .set('Authorization', `Bearer ${token}`)
