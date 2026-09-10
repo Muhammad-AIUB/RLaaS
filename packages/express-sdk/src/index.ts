@@ -10,6 +10,18 @@ export interface CreateRlaasMiddlewareOptions {
   gatewayUrl: string;
   userTierResolver?: (request: Request) => string | Promise<string>;
   ipResolver?: (request: Request) => string;
+  /**
+   * How many proxies sit between the internet and this app.
+   *
+   * 0 (the default) means the socket address is used and `x-forwarded-for` is
+   * ignored. Set it to the real number of hops when you run behind a load
+   * balancer or CDN — 1 for a single nginx/ALB/Render/Cloudflare in front.
+   *
+   * Getting this too low collapses clients onto the proxy address and limits
+   * them together. Too high hands every client a limit bypass. When in doubt,
+   * too low.
+   */
+  trustProxyHops?: number;
   fetchImpl?: typeof fetch;
   onError?: (
     error: unknown,
@@ -18,24 +30,56 @@ export interface CreateRlaasMiddlewareOptions {
   ) => void | Promise<void>;
 }
 
-function resolveIp(request: Request): string {
+/**
+ * Resolves the client IP without trusting the client.
+ *
+ * This used to read `x-forwarded-for` and return `split(',')[0]` — the
+ * LEFTMOST entry — before ever looking at the socket, and to consult
+ * `cf-connecting-ip` only as a second choice. Both are request headers, so any
+ * caller could name its own address:
+ *
+ *     curl https://your-app/products -H 'X-Forwarded-For: 198.51.100.5'
+ *
+ * The value is sent to the gateway, where it selects the matching rule and
+ * keys its counter. So a rule with `scope: IP` limited nothing (rotate the
+ * header, get a fresh budget), and an IP rule granting a partner address a
+ * high limit was claimable by anyone, since IP outranks every other scope.
+ *
+ * Setting Express's `trust proxy` did not help, because `req.ip` was never
+ * reached. And the common proxies APPEND rather than replace
+ * (nginx `$proxy_add_x_forwarded_for`, AWS ALB, Render), so the injected value
+ * kept the leftmost slot.
+ *
+ * The chain is now read from the RIGHT: the last entry was written by the
+ * proxy nearest this app and is the only one it can vouch for. With N trusted
+ * hops the client is the (N+1)-th from the right.
+ */
+export function resolveIp(request: Request, trustProxyHops = 0): string {
+  const socketIp =
+    request.socket?.remoteAddress ??
+    request.connection?.remoteAddress ??
+    '127.0.0.1';
+
+  if (trustProxyHops <= 0) {
+    return socketIp;
+  }
+
   const forwarded = request.headers['x-forwarded-for'];
+  const raw = Array.isArray(forwarded) ? forwarded.join(',') : forwarded;
 
-  if (typeof forwarded === 'string' && forwarded.length > 0) {
-    return forwarded.split(',')[0].trim();
+  const chain = (raw ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  // A chain shorter than the configured hop count means the request did not
+  // arrive through the expected path. Fall back rather than pick an entry the
+  // caller may have written.
+  if (chain.length < trustProxyHops) {
+    return socketIp;
   }
 
-  const cfIp = request.headers['cf-connecting-ip'];
-  if (typeof cfIp === 'string' && cfIp.length > 0) {
-    return cfIp;
-  }
-
-  return (
-    request.ip ||
-    request.socket.remoteAddress ||
-    request.connection.remoteAddress ||
-    '127.0.0.1'
-  );
+  return chain[chain.length - trustProxyHops] ?? socketIp;
 }
 
 function stripQuery(url: string): string {
@@ -62,7 +106,9 @@ export function createRlaasMiddleware(
       const userTier = await options.userTierResolver?.(request);
       const payload: GatewayCheckRequest = {
         apiKey: options.apiKey,
-        ip: options.ipResolver?.(request) ?? resolveIp(request),
+        ip:
+          options.ipResolver?.(request) ??
+          resolveIp(request, options.trustProxyHops ?? 0),
         endpoint: stripQuery(request.originalUrl || request.url),
         method: request.method.toUpperCase(),
         userTier: userTier ?? 'free',

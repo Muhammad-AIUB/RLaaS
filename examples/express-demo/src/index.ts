@@ -7,8 +7,27 @@ const app = express();
 const port = Number(process.env.PORT ?? 4000);
 const gatewayUrl =
   process.env.RLAAS_GATEWAY_URL ?? 'http://localhost:3000/api/v1/gateway/check';
-const apiKey =
-  process.env.RLAAS_API_KEY ?? 'rlaas_live_demo_seed_key_1234567890';
+/**
+ * No fallback. This used to default to rlaas_live_demo_seed_key_1234567890, a
+ * key that was committed to this public repository and is permanently readable
+ * in git history — so running the demo without configuring it sent a burned
+ * credential at whatever gateway RLAAS_GATEWAY_URL pointed to.
+ */
+const apiKey = process.env.RLAAS_API_KEY;
+
+if (!apiKey) {
+  throw new Error(
+    'RLAAS_API_KEY is not set. Issue a key from the dashboard (Projects -> API Keys) ' +
+      'and put it in examples/express-demo/.env — see .env.example.',
+  );
+}
+
+/**
+ * How many proxies sit in front of this demo. 0 means the SDK uses the socket
+ * address and ignores x-forwarded-for, so a caller cannot name its own IP and
+ * walk past an IP-scoped rule. Raise it only to the real hop count.
+ */
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 0);
 
 app.use(express.json());
 
@@ -22,6 +41,7 @@ app.get('/public', (_request, response) => {
 const rlaasMiddleware = createRlaasMiddleware({
   apiKey,
   gatewayUrl,
+  trustProxyHops,
   userTierResolver: (request) => {
     const headerValue = request.header('x-user-tier');
     return headerValue && headerValue.length > 0 ? headerValue : 'free';
