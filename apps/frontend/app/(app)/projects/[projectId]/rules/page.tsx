@@ -4,7 +4,7 @@ import { FormEvent, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ErrorState, LoadingState } from '@/components/feedback';
 import { PageHeader, ProjectTabs } from '@/components/layout';
-import { Panel, PanelHeader } from '@/components/ui';
+import { ConfirmDialog, Panel, PanelHeader } from '@/components/ui';
 import { rulesApi } from '@/lib/api';
 import {
   algorithmLabel,
@@ -469,39 +469,23 @@ export default function RulesPage() {
         </div>
       )}
 
-      {/* Delete — a rule used to vanish on a single click with no way back. */}
-      {deletingRule && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
-          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-raised p-6 shadow-overlay">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Delete “{deletingRule.name}”?
-            </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Traffic matching {scopeLabel(deletingRule.scope).toLowerCase()} will
-              fall through to the next rule that matches, or be allowed if none
-              does. This cannot be undone.
-            </p>
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                className="btn-danger-solid"
-                onClick={confirmDelete}
-                disabled={deletePending}
-              >
-                {deletePending ? 'Deleting…' : 'Delete rule'}
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setDeletingRule(null)}
-                disabled={deletePending}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={deletingRule !== null}
+        title={`Delete “${deletingRule?.name ?? ''}”?`}
+        body={
+          <>
+            Traffic matching{' '}
+            {scopeLabel(deletingRule?.scope ?? '').toLowerCase()} will fall
+            through to the next rule that matches, or be allowed if none does.
+            This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete rule"
+        pendingLabel="Deleting…"
+        pending={deletePending}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeletingRule(null)}
+      />
     </>
   );
 }

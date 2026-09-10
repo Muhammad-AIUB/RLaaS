@@ -4,7 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ErrorState, LoadingState } from '@/components/feedback';
 import { PageHeader, ProjectTabs } from '@/components/layout';
-import { Panel, PanelHeader } from '@/components/ui';
+import { ConfirmDialog, Panel, PanelHeader } from '@/components/ui';
 import { membersApi } from '@/lib/api';
 import { useAsyncResource } from '@/lib/hooks';
 import type { InviteMemberInput, ProjectMemberRecord } from '@/lib/types';
@@ -21,6 +21,8 @@ function initials(name: string): string {
 export default function ProjectMembersPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as string;
+
+  const [removing, setRemoving] = useState<ProjectMemberRecord | null>(null);
 
   const members = useAsyncResource<ProjectMemberRecord[]>(
     () => membersApi.list(projectId),
@@ -68,11 +70,13 @@ export default function ProjectMembersPage() {
     }
   }
 
-  async function handleRemove(memberId: string) {
-    setRemovingId(memberId);
+  async function handleRemove() {
+    if (!removing) return;
+    setRemovingId(removing.id);
     members.setError('');
     try {
-      await membersApi.remove(projectId, memberId);
+      await membersApi.remove(projectId, removing.id);
+      setRemoving(null);
       await members.reload();
     } catch (caughtError) {
       members.setError(
@@ -182,9 +186,10 @@ export default function ProjectMembersPage() {
                     {!isOwner && (
                       <button
                         type="button"
-                        className="rounded-lg border border-red-200 bg-surface px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition disabled:opacity-50"
-                        onClick={() => handleRemove(member.id)}
+                        className="btn-ghost btn-sm !text-slate-500 hover:!text-red-700"
+                        onClick={() => setRemoving(member)}
                         disabled={removingId === member.id}
+                        aria-label={`Remove ${member.user.fullName || member.user.email}`}
                       >
                         {removingId === member.id ? '…' : 'Remove'}
                       </button>
@@ -196,6 +201,25 @@ export default function ProjectMembersPage() {
           </ul>
         </Panel>
       )}
+
+      <ConfirmDialog
+        open={removing !== null}
+        title="Remove this member?"
+        body={
+          <>
+            <span className="text-slate-700">
+              {removing?.user.fullName || removing?.user.email}
+            </span>{' '}
+            loses access to this project&rsquo;s keys, rules, and analytics
+            straight away. They can be invited back afterwards.
+          </>
+        }
+        confirmLabel="Remove member"
+        pendingLabel="Removing…"
+        pending={removingId === removing?.id}
+        onConfirm={handleRemove}
+        onCancel={() => setRemoving(null)}
+      />
     </>
   );
 }

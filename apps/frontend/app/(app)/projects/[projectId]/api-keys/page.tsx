@@ -5,14 +5,18 @@ import { useParams } from 'next/navigation';
 import { ErrorState, LoadingState } from '@/components/feedback';
 import { AlertIcon } from '@/components/icons';
 import { PageHeader, ProjectTabs } from '@/components/layout';
-import { Panel, PanelHeader } from '@/components/ui';
+import { ConfirmDialog, Panel, PanelHeader } from '@/components/ui';
 import { apiKeysApi } from '@/lib/api';
+import { formatAbsolute, formatRelativeTime, humanizeEnum } from '@/lib/format';
 import { useAsyncResource } from '@/lib/hooks';
 import type { ApiKeyRecord, CreateApiKeyInput } from '@/lib/types';
 
 export default function ApiKeysPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as string;
+
+  const [revoking, setRevoking] = useState<ApiKeyRecord | null>(null);
+  const [revokePending, setRevokePending] = useState(false);
 
   const keys = useAsyncResource<ApiKeyRecord[]>(
     () => apiKeysApi.list(projectId),
@@ -51,9 +55,12 @@ export default function ApiKeysPage() {
     }
   }
 
-  async function revoke(apiKeyId: string) {
+  async function revoke() {
+    if (!revoking) return;
+    setRevokePending(true);
     try {
-      await apiKeysApi.revoke(projectId, apiKeyId);
+      await apiKeysApi.revoke(projectId, revoking.id);
+      setRevoking(null);
       await keys.reload();
     } catch (caughtError) {
       keys.setError(
@@ -61,6 +68,8 @@ export default function ApiKeysPage() {
           ? caughtError.message
           : 'Failed to revoke API key',
       );
+    } finally {
+      setRevokePending(false);
     }
   }
 
@@ -200,20 +209,25 @@ export default function ApiKeysPage() {
                             : 'badge-neutral'
                         }
                       >
-                        {item.status}
+                        {humanizeEnum(item.status)}
                       </span>
                     </td>
                     <td className="text-slate-500">
-                      {item.lastUsedAt
-                        ? new Date(item.lastUsedAt).toLocaleString()
-                        : 'Never'}
+                      {item.lastUsedAt ? (
+                        <span title={formatAbsolute(item.lastUsedAt)}>
+                          {formatRelativeTime(item.lastUsedAt)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">Never used</span>
+                      )}
                     </td>
                     <td className="text-right">
                       {item.status !== 'REVOKED' ? (
                         <button
                           type="button"
-                          className="btn-danger btn-sm"
-                          onClick={() => revoke(item.id)}
+                          className="btn-ghost btn-sm !text-slate-500 hover:!text-red-700"
+                          onClick={() => setRevoking(item)}
+                          aria-label={`Revoke ${item.name}`}
                         >
                           Revoke
                         </button>
@@ -228,6 +242,24 @@ export default function ApiKeysPage() {
           </div>
         </Panel>
       )}
+
+      <ConfirmDialog
+        open={revoking !== null}
+        title={`Revoke “${revoking?.name ?? ''}”?`}
+        body={
+          <>
+            Any client still sending{' '}
+            <span className="font-mono text-slate-700">{revoking?.keyPrefix}…</span>{' '}
+            starts getting rejected immediately. A revoked key cannot be
+            restored — you would have to issue a new one.
+          </>
+        }
+        confirmLabel="Revoke key"
+        pendingLabel="Revoking…"
+        pending={revokePending}
+        onConfirm={revoke}
+        onCancel={() => setRevoking(null)}
+      />
     </>
   );
 }

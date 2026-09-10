@@ -6,6 +6,7 @@ import { ClockIcon } from '@/components/icons';
 import { PageHeader, ProjectTabs } from '@/components/layout';
 import { Panel } from '@/components/ui';
 import { auditLogsApi } from '@/lib/api';
+import { formatAbsolute, formatRelativeTime, humanizeEnum } from '@/lib/format';
 import { useAsyncResource } from '@/lib/hooks';
 import type { AuditLogRecord } from '@/lib/types';
 
@@ -59,9 +60,11 @@ export default function AuditLogsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-slate-900">
-                      {entry.action}
+                      {humanizeEnum(entry.action)}
                     </p>
-                    <span className="badge-neutral">{entry.resourceType}</span>
+                    <span className="badge-neutral">
+                      {humanizeEnum(entry.resourceType)}
+                    </span>
                   </div>
                   <p className="mt-1 text-xs text-slate-500">
                     by{' '}
@@ -69,7 +72,9 @@ export default function AuditLogsPage() {
                       {entry.actor?.fullName || 'System'}
                     </span>
                     {entry.actor?.email ? ` · ${entry.actor.email}` : ''} ·{' '}
-                    {new Date(entry.createdAt).toLocaleString()}
+                    <span title={formatAbsolute(entry.createdAt)}>
+                      {formatRelativeTime(entry.createdAt)}
+                    </span>
                   </p>
                 </div>
               </li>

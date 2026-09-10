@@ -7,10 +7,11 @@ import {
   ErrorState,
   LoadingState,
 } from '@/components/feedback';
-import { PlusIcon, ProjectsIcon } from '@/components/icons';
+import { PlusIcon } from '@/components/icons';
 import { PageHeader } from '@/components/layout';
 import { Panel, PanelHeader } from '@/components/ui';
 import { projectsApi } from '@/lib/api';
+import { formatCount } from '@/lib/format';
 import { useAsyncResource } from '@/lib/hooks';
 import type { CreateProjectInput, ProjectSummary } from '@/lib/types';
 
@@ -150,40 +151,44 @@ export default function ProjectsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((project) => (
+            /* The card used to open with a folder icon in a tinted tile,
+               identical on every card. A decoration repeated on every item
+               distinguishes nothing; the space now goes to the project's
+               status, which differs. */
             <Link
               key={project.id}
               href={`/projects/${project.id}`}
-              className="group card flex h-full flex-col p-5 transition hover:border-brand-300 hover:shadow-card-hover"
+              className="group card flex h-full flex-col p-5 transition-colors duration-state hover:border-slate-300"
             >
               <div className="flex items-start justify-between gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-brand-100">
-                  <ProjectsIcon className="h-5 w-5" />
-                </div>
-                <span className="badge-neutral">{project.environment}</span>
+                <h2 className="min-w-0 text-base font-semibold text-slate-900">
+                  {project.name}
+                </h2>
+                <span
+                  className={
+                    project.isActive ? 'badge-success shrink-0' : 'badge-warning shrink-0'
+                  }
+                >
+                  {project.isActive ? 'Active' : 'Paused'}
+                </span>
               </div>
-              <h2 className="mt-4 text-base font-semibold text-slate-900 group-hover:text-brand-700">
-                {project.name}
-              </h2>
-              <p className="mt-1 line-clamp-2 text-sm text-slate-500">
-                {project.description || 'No description yet.'}
-              </p>
-              <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-xs text-slate-500">
-                <div className="flex items-center gap-4">
-                  <span>
-                    <strong className="font-semibold text-slate-700">
-                      {project._count?.apiKeys ?? 0}
-                    </strong>{' '}
-                    keys
+
+              {project.description ? (
+                <p className="mt-1.5 line-clamp-2 text-sm text-slate-500">
+                  {project.description}
+                </p>
+              ) : null}
+
+              <div className="mt-auto flex items-center justify-between gap-3 pt-5 text-xs text-slate-500">
+                <span className="num font-mono">
+                  {formatCount(project._count?.rules ?? 0)} rules ·{' '}
+                  {formatCount(project._count?.apiKeys ?? 0)} keys
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="badge-neutral">{project.environment}</span>
+                  <span className="badge-neutral">
+                    {project.currentRole ?? 'VIEWER'}
                   </span>
-                  <span>
-                    <strong className="font-semibold text-slate-700">
-                      {project._count?.rules ?? 0}
-                    </strong>{' '}
-                    rules
-                  </span>
-                </div>
-                <span className="badge-brand !py-0">
-                  {project.currentRole ?? 'VIEWER'}
                 </span>
               </div>
             </Link>

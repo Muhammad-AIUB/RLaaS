@@ -4,7 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ErrorState, LoadingState } from '@/components/feedback';
 import { PageHeader, ProjectTabs } from '@/components/layout';
-import { Panel, PanelHeader } from '@/components/ui';
+import { ConfirmDialog, Panel, PanelHeader } from '@/components/ui';
 import { webhooksApi } from '@/lib/api';
 import { useAsyncResource } from '@/lib/hooks';
 import type { CreateWebhookInput, UpdateWebhookInput, WebhookEndpointRecord } from '@/lib/types';
@@ -19,6 +19,9 @@ function readNumber(form: FormData, key: string, fallback: number): number {
 export default function WebhooksPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as string;
+
+  const [deleting, setDeleting] = useState<WebhookEndpointRecord | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
 
   const webhooks = useAsyncResource<WebhookEndpointRecord[]>(
     () => webhooksApi.list(projectId),
@@ -90,9 +93,12 @@ export default function WebhooksPage() {
     }
   }
 
-  async function remove(webhookId: string) {
+  async function remove() {
+    if (!deleting) return;
+    setDeletePending(true);
     try {
-      await webhooksApi.remove(projectId, webhookId);
+      await webhooksApi.remove(projectId, deleting.id);
+      setDeleting(null);
       await webhooks.reload();
     } catch (caughtError) {
       webhooks.setError(
@@ -100,6 +106,8 @@ export default function WebhooksPage() {
           ? caughtError.message
           : 'Failed to delete webhook',
       );
+    } finally {
+      setDeletePending(false);
     }
   }
 
@@ -241,8 +249,9 @@ export default function WebhooksPage() {
                   </button>
                   <button
                     type="button"
-                    className="btn-danger btn-sm"
-                    onClick={() => remove(webhook.id)}
+                    className="btn-ghost btn-sm !text-slate-500 hover:!text-red-700"
+                    onClick={() => setDeleting(webhook)}
+                    aria-label={`Delete webhook ${webhook.url}`}
                   >
                     Delete
                   </button>
@@ -290,6 +299,26 @@ export default function WebhooksPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Delete this webhook?"
+        body={
+          <>
+            Blocked-activity spikes stop being delivered to{' '}
+            <span className="break-all font-mono text-slate-700">
+              {deleting?.url}
+            </span>
+            . Nothing else changes — the rules keep enforcing, you just stop
+            hearing about it.
+          </>
+        }
+        confirmLabel="Delete webhook"
+        pendingLabel="Deleting…"
+        pending={deletePending}
+        onConfirm={remove}
+        onCancel={() => setDeleting(null)}
+      />
     </>
   );
 }

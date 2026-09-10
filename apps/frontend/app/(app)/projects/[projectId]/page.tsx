@@ -6,7 +6,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { ErrorState, LoadingState } from '@/components/feedback';
 import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader, ProjectTabs } from '@/components/layout';
-import { Panel, PanelHeader, RankRow, SplitBar } from '@/components/ui';
+import { ConfirmDialog, Panel, PanelHeader, RankRow, SplitBar } from '@/components/ui';
 import { analyticsApi, apiKeysApi, projectsApi, rulesApi } from '@/lib/api';
 import {
   algorithmLabel,
@@ -461,41 +461,25 @@ export default function ProjectDetailsPage() {
         </div>
       )}
 
-      {/* Delete */}
-      {showDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
-          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-raised p-6 shadow-overlay">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Delete “{data.name}”?
-            </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              This permanently removes {state.rules.length} {state.rules.length === 1 ? 'rule' : 'rules'},{' '}
-              {state.keys.length} {state.keys.length === 1 ? 'API key' : 'API keys'}, and all request
-              logs. Any client still using those keys will start failing. This
-              cannot be undone.
-            </p>
-            {actionError && <p className="mt-3 text-sm text-red-700">{actionError}</p>}
-            <div className="mt-5 flex gap-2">
-              <button
-                type="button"
-                className="btn-danger-solid"
-                onClick={handleDelete}
-                disabled={actionPending}
-              >
-                {actionPending ? 'Deleting…' : 'Delete project'}
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => setShowDelete(false)}
-                disabled={actionPending}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={showDelete}
+        title={`Delete “${data.name}”?`}
+        body={
+          <>
+            This permanently removes {state.rules.length}{' '}
+            {state.rules.length === 1 ? 'rule' : 'rules'}, {state.keys.length}{' '}
+            {state.keys.length === 1 ? 'API key' : 'API keys'}, and all request
+            logs. Any client still using those keys will start failing. This
+            cannot be undone.
+          </>
+        }
+        confirmLabel="Delete project"
+        pendingLabel="Deleting…"
+        pending={actionPending}
+        error={actionError}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDelete(false)}
+      />
     </>
   );
 }
