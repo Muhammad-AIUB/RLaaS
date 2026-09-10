@@ -15,15 +15,28 @@ const OUT = path.join(__dirname);
   await page.waitForTimeout(2000);
 
   // Intercept and trigger the login API call
-  const loginResp = await page.evaluate(async () => {
+  // Credentials come from the environment. They were hardcoded here, and the
+  // pair was committed to this public repository.
+  const creds = {
+    email: process.env.SCREENSHOT_EMAIL,
+    password: process.env.SCREENSHOT_PASSWORD,
+  };
+
+  if (!creds.email || !creds.password) {
+    throw new Error(
+      'Set SCREENSHOT_EMAIL and SCREENSHOT_PASSWORD before running this script.',
+    );
+  }
+
+  const loginResp = await page.evaluate(async (creds) => {
     const r = await fetch('/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'demo@rlaas.local', password: 'DemoPass123!' }),
+      body: JSON.stringify({ email: creds.email, password: creds.password }),
       credentials: 'include'
     });
     return { status: r.status, ok: r.ok };
-  });
+  }, creds);
   console.log('Login API response:', loginResp);
   await page.waitForTimeout(1000);
   console.log('Current URL after login:', page.url());

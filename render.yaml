@@ -6,7 +6,17 @@ services:
     plan: free
     rootDir: apps/backend
     buildCommand: npm i -g pnpm && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build
-    startCommand: pnpm prisma migrate deploy && pnpm prisma db seed && node dist/main
+    # `prisma db seed` used to run here, on every single deploy. seed.js upserts
+    # the demo user with `update: { passwordHash }` and upserts the demo API key
+    # from SEED_DEMO_PASSWORD / SEED_RAW_API_KEY — and both of those values were
+    # committed to this PUBLIC repository between 2026-05-07 and 2026-08-27
+    # (removed in 487449f, still readable in git history forever). So a deploy
+    # rewrote a password and an API key that anyone can look up.
+    #
+    # Seeding is a provisioning step, not a boot step. Run it by hand against a
+    # fresh database, with values that were never committed:
+    #   pnpm --filter @rlaas/backend db:seed
+    startCommand: pnpm prisma migrate deploy && node dist/main
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
@@ -23,6 +33,13 @@ services:
         value: fixed_window
       - key: IDEMPOTENCY_TTL_SECONDS
         value: "300"
+      # Render terminates TLS and forwards with one proxy hop in front of the
+      # app. Without this the app ignores x-forwarded-for entirely and sees
+      # every request as coming from Render's proxy, which collapses all
+      # IP-scoped rules onto one bucket. Raising it above the real hop count is
+      # the dangerous direction: it lets a caller name its own address.
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
       - key: PRISMA_QUERY_DEBUG
         value: "false"
       - key: SEED_DEMO_EMAIL
