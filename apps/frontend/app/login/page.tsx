@@ -69,7 +69,10 @@ function DecisionTrace() {
 export default function LoginPage() {
   const router = useRouter();
   const [error, setError] = useState('');
-  const [pending, setPending] = useState(false);
+  // Which sign-in is running, not merely that one is. Both buttons share this
+  // state, so a plain boolean made them both read "Signing in…" and the person
+  // who pressed one could not tell which had been accepted.
+  const [pending, setPending] = useState<'credentials' | 'demo' | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [slowWarning, setSlowWarning] = useState(false);
 
@@ -78,9 +81,13 @@ export default function LoginPage() {
     fetch('/api/ping').catch(() => {});
   }, []);
 
-  async function submitCredentials(email: string, password: string) {
+  async function submitCredentials(
+    email: string,
+    password: string,
+    action: 'credentials' | 'demo',
+  ) {
     setError('');
-    setPending(true);
+    setPending(action);
     setSlowWarning(false);
     const slowTimer = setTimeout(() => setSlowWarning(true), 5000);
     try {
@@ -106,7 +113,7 @@ export default function LoginPage() {
       );
     } finally {
       clearTimeout(slowTimer);
-      setPending(false);
+      setPending(null);
       setSlowWarning(false);
     }
   }
@@ -117,11 +124,12 @@ export default function LoginPage() {
     await submitCredentials(
       formData.get('email') as string,
       formData.get('password') as string,
+      'credentials',
     );
   }
 
   async function handleGuestLogin() {
-    await submitCredentials(DEMO_EMAIL, DEMO_PASSWORD);
+    await submitCredentials(DEMO_EMAIL, DEMO_PASSWORD, 'demo');
   }
 
   return (
@@ -236,17 +244,21 @@ export default function LoginPage() {
               </div>
             )}
 
-            <button type="submit" className="btn-primary w-full" disabled={pending}>
-              {pending ? 'Signing in…' : 'Sign in'}
+            <button
+              type="submit"
+              className="btn-primary w-full"
+              disabled={pending !== null}
+            >
+              {pending === 'credentials' ? 'Signing in…' : 'Sign in'}
             </button>
 
             <button
               type="button"
               className="btn-secondary w-full"
               onClick={handleGuestLogin}
-              disabled={pending}
+              disabled={pending !== null}
             >
-              {pending ? 'Signing in…' : 'Sign in to the demo account'}
+              {pending === 'demo' ? 'Signing in…' : 'Sign in to the demo account'}
             </button>
 
             <p className="text-center text-2xs text-slate-500">
