@@ -98,6 +98,18 @@ export default function RootLayout({
       className={`h-full ${archivo.variable} ${plexMono.variable}`}
       suppressHydrationWarning
     >
+      <head>
+        {/*
+          Runs before first paint so an explicit light/dark choice is applied
+          without a flash of the other theme. Absent a stored choice the
+          attribute stays off and the CSS media query decides.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem('rlaas-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t)}}catch(e){}`,
+          }}
+        />
+      </head>
       <body className="h-full font-sans" suppressHydrationWarning>
         {children}
       </body>
