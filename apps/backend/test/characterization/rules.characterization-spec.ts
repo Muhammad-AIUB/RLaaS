@@ -277,24 +277,22 @@ describe('/api/v1/projects/:projectId/rules', () => {
       });
     });
 
-    it('rejects `isActive`, which is the field the dashboard toggle sends', async () => {
+    // WAS KNOWN-ODD — BROKEN FEATURE, NOW FIXED. UpdateRuleDto is
+    // PartialType(CreateRuleDto) and CreateRuleDto had no `isActive` member,
+    // so `forbidNonWhitelisted` rejected it. The dashboard's Pause control
+    // posts exactly this body (apps/frontend/app/(app)/projects/[projectId]/
+    // rules/page.tsx), so it always failed with "Failed to toggle rule" — a
+    // rule could be created active and never turned off through the UI.
+    it('accepts `isActive`, which is the field the dashboard toggle sends', async () => {
       const rule = seedRule({ isActive: true });
 
       const response = await asUser(ownerToken).patch(`${base}/${rule.id}`, {
         isActive: false,
       });
 
-      // KNOWN-ODD — BROKEN FEATURE. UpdateRuleDto is PartialType(CreateRuleDto)
-      // and CreateRuleDto has no `isActive` member, so `forbidNonWhitelisted`
-      // rejects it. The dashboard's activate/deactivate switch posts exactly
-      // this body (apps/frontend/app/(app)/projects/[projectId]/rules/page.tsx),
-      // so that control always fails with "Failed to toggle rule". A rule can
-      // be created active and never turned off through the UI.
-      expect(response.status).toBe(400);
-      expect(response.body.error.message).toEqual([
-        'property isActive should not exist',
-      ]);
-      expect(ctx.prisma.rules[0].isActive).toBe(true);
+      expect(response.status).toBe(200);
+      expect(response.body).toMatchObject({ isActive: false });
+      expect(ctx.prisma.rules[0].isActive).toBe(false);
     });
 
     it('answers 404 for a rule that belongs to another project', async () => {
