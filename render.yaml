@@ -1,3 +1,30 @@
+# NOT APPLIED. The Render service reads none of this.
+#
+# rlaas-backend takes its build and start commands from the Render dashboard
+# (Settings -> Build & Deploy), not from this file. The deploy of 8b9ca64
+# proves it. Render ran:
+#   build:  pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build
+#   start:  pnpm prisma migrate deploy && pnpm prisma db seed && node dist/src/main
+# Neither line matches any version of this file ever committed: every version
+# here starts the build with `npm i -g pnpm`, and no version has ever said
+# `dist/src/main`. The service was created by hand, so the Blueprint was never
+# linked, and this file has been inert since a08ca3c on 2026-05-11.
+#
+# That is not free. `prisma db seed` was taken out of the startCommand here in
+# 152dc31 and is still in the dashboard copy, which is what killed the deploy
+# of 8b9ca64: seed.js refuses to write demo credentials that are public in git
+# history (9ea4d17), so the seed exited 1, the `&&` chain never reached node,
+# no port opened, and the service crash-looped.
+#
+# Change deploy config in the DASHBOARD. Mirror it here to keep the record
+# reviewable, and know that editing this file alone ships nothing.
+# apps/backend/src/config/deploy-config.spec.ts keeps this file internally
+# consistent; it cannot see the dashboard.
+#
+# gstack-shortcut(dec-8c952635): reference-only file, so the tests guard the
+# document rather than the running service. Upgrade when the Blueprint is
+# linked, or when a Render API key can assert the live commands.
+
 services:
   - type: web
     name: rlaas-backend
@@ -30,7 +57,14 @@ services:
     # Nothing but the server. Every second spent here is a second the first
     # visitor after a spin-down waits, and neither migrating nor seeding is
     # work that belongs on a container start.
-    startCommand: node dist/main
+    #
+    # dist/src/main, not dist/main. tsconfig.json's `include` spans src/,
+    # test/ and prisma/seed.js, so TypeScript's common root is the package
+    # root: nest emits dist/src/main.js, with dist/prisma/ beside it.
+    # `node dist/main` exits MODULE_NOT_FOUND. package.json's start:prod has
+    # carried the correct path all along; this line said dist/main from a08ca3c
+    # until now and never failed a deploy, because nothing ran it.
+    startCommand: node dist/src/main
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
