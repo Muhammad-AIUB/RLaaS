@@ -258,7 +258,7 @@ export default function ProjectDetailsPage() {
                   key={rule.id}
                   className="flex items-center gap-3 border-b border-slate-100 px-5 py-2.5 last:border-b-0 sm:px-6"
                 >
-                  <span className="num w-4 shrink-0 text-xs font-semibold text-slate-400">
+                  <span className="num w-4 shrink-0 text-xs font-semibold text-slate-500">
                     {index + 1}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -271,7 +271,7 @@ export default function ProjectDetailsPage() {
                   </div>
                   <span className="num shrink-0 font-mono text-xs text-slate-600">
                     {formatCount(rule.limit)}
-                    <span className="text-slate-400"> / {formatDuration(rule.windowSeconds)}</span>
+                    <span className="text-slate-500"> / {formatDuration(rule.windowSeconds)}</span>
                   </span>
                 </li>
               ))}

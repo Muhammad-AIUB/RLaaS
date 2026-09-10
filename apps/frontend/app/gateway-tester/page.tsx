@@ -167,7 +167,7 @@ export default function GatewayTesterPage() {
         {/* Header */}
         <div className="mb-1 flex items-center gap-2">
           <LogoMark className="h-6 w-6 opacity-70" />
-          <span className="text-sm text-slate-400">RLaaS Platform</span>
+          <span className="text-sm text-slate-500">RLaaS Platform</span>
         </div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-900">
           Gateway Tester
@@ -180,7 +180,7 @@ export default function GatewayTesterPage() {
 
         {/* Algorithm tabs */}
         <div className="mt-8">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
             Algorithm
           </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -200,14 +200,14 @@ export default function GatewayTesterPage() {
                   {a.label}
                 </span>
                 <span
-                  className={`mt-0.5 block text-xs ${algo === a.value ? 'text-brand-500' : 'text-slate-400'}`}
+                  className={`mt-0.5 block text-xs ${algo === a.value ? 'text-brand-500' : 'text-slate-500'}`}
                 >
                   {a.tagline}
                 </span>
               </button>
             ))}
           </div>
-          <p className="mt-2 text-xs text-slate-400">{selectedAlgo.detail}</p>
+          <p className="mt-2 text-xs text-slate-500">{selectedAlgo.detail}</p>
         </div>
 
         {/* Main grid: controls + log */}
@@ -234,7 +234,7 @@ export default function GatewayTesterPage() {
                   }`}
                 >
                   {remaining}
-                  <span className="ml-1 text-base font-normal text-slate-400">
+                  <span className="ml-1 text-base font-normal text-slate-500">
                     / {LIMIT}
                   </span>
                 </span>
@@ -251,7 +251,7 @@ export default function GatewayTesterPage() {
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <div className="mt-1.5 text-xs text-slate-400">
+              <div className="mt-1.5 text-xs text-slate-500">
                 {countdown > 0 ? (
                   <span>
                     Window resets in{' '}
@@ -288,7 +288,7 @@ export default function GatewayTesterPage() {
               </button>
               <button
                 onClick={handleReset}
-                className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-600"
               >
                 Start a new session
               </button>
@@ -297,12 +297,12 @@ export default function GatewayTesterPage() {
 
           {/* Log */}
           <div className="card flex flex-col p-6">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-400">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
               Request Log
             </p>
             {logs.length === 0 ? (
               <div className="flex flex-1 items-center justify-center py-12 text-center">
-                <p className="text-sm text-slate-400">
+                <p className="text-sm text-slate-500">
                   No requests yet.
                   <br />
                   Press <strong>Send request</strong> to start.
@@ -323,7 +323,7 @@ export default function GatewayTesterPage() {
                       <span className="font-bold">
                         {log.allowed ? '✓ 200 ALLOWED' : '✗ 429 BLOCKED'}
                       </span>
-                      <span className="text-slate-400">{log.time}</span>
+                      <span className="text-slate-500">{log.time}</span>
                     </div>
                     <span className="text-right">
                       {log.allowed ? (
@@ -365,7 +365,7 @@ export default function GatewayTesterPage() {
 
         {/* Algorithm breakdown */}
         <div className="mt-6 card p-6">
-          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-400">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-slate-500">
             The 4 algorithms
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -383,7 +383,7 @@ export default function GatewayTesterPage() {
                   className={`font-semibold ${algo === a.value ? 'text-brand-800' : 'text-slate-800'}`}
                 >
                   {a.label}
-                  <span className="ml-2 text-xs font-normal text-slate-400">
+                  <span className="ml-2 text-xs font-normal text-slate-500">
                     {a.tagline}
                   </span>
                 </p>
@@ -396,7 +396,7 @@ export default function GatewayTesterPage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 text-sm text-slate-400">
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-4 text-sm text-slate-500">
           <div className="flex items-center gap-2">
             <LogoMark className="h-5 w-5 opacity-40" />
             <span>RLaaS Platform · Built by Muhammad Jubayer</span>

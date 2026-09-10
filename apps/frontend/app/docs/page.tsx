@@ -150,7 +150,7 @@ export default function DocsPage() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {features.map((f) => (
               <div key={f.label} className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2">
-                <span className="text-xs text-slate-400 w-14 shrink-0">{f.tag}</span>
+                <span className="text-xs text-slate-500 w-14 shrink-0">{f.tag}</span>
                 <span className="text-sm font-medium text-slate-700">{f.label}</span>
               </div>
             ))}

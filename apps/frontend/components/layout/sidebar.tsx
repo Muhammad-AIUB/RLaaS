@@ -74,7 +74,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <div className="px-3 pb-2">
-        <p className="px-3 pb-1 pt-3 text-2xs font-semibold uppercase tracking-wider text-slate-400">
+        <p className="px-3 pb-1 pt-3 text-2xs font-semibold uppercase tracking-wider text-slate-500">
           Navigation
         </p>
         <nav className="space-y-0.5">

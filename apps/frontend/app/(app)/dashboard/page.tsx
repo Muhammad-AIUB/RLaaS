@@ -206,7 +206,7 @@ export default function DashboardOverviewPage() {
                           showLegend={false}
                         />
                       ) : (
-                        <span className="text-xs text-slate-400">No traffic</span>
+                        <span className="text-xs text-slate-500">No traffic</span>
                       )}
                     </td>
                     <td className="!text-right">

@@ -218,7 +218,7 @@ export default function ApiKeysPage() {
                           {formatRelativeTime(item.lastUsedAt)}
                         </span>
                       ) : (
-                        <span className="text-slate-400">Never used</span>
+                        <span className="text-slate-500">Never used</span>
                       )}
                     </td>
                     <td className="text-right">
@@ -232,7 +232,7 @@ export default function ApiKeysPage() {
                           Revoke
                         </button>
                       ) : (
-                        <span className="text-xs text-slate-400">—</span>
+                        <span className="text-xs text-slate-500">—</span>
                       )}
                     </td>
                   </tr>
