@@ -403,15 +403,26 @@ describe('POST /api/v1/gateway/check', () => {
       ]);
     });
 
-    it('does NOT validate `method` against the HTTP verbs it later casts to', async () => {
+    // WAS KNOWN-ODD, NOW FIXED: `method` was only @IsString/@MaxLength(16),
+    // then cast to the Prisma HttpMethod enum when the request log was
+    // written. On a real database the decision was served and the log write
+    // threw, so traffic with a nonstandard verb was rate limited but invisible
+    // to analytics, lastUsedAt and the webhook blocked-spike counts.
+    it('rejects a `method` outside the HTTP verbs it can record', async () => {
       seedApiKey();
 
       const response = await post(validRequest({ method: 'TELEPORT' }));
 
-      // KNOWN-ODD: `method` is only @IsString/@MaxLength(16) on the DTO, but it
-      // is cast to the Prisma HttpMethod enum when the request log is written.
-      // The decision succeeds; the deferred log write is what would fail on a
-      // real database.
+      expect(response.status).toBe(400);
+      expect(JSON.stringify(response.body)).toContain('method');
+    });
+
+    it('accepts a lowercase method and normalizes it', async () => {
+      seedApiKey();
+      seedRule();
+
+      const response = await post(validRequest({ method: 'get' }));
+
       expect(response.status).toBe(201);
       expect(response.body.allowed).toBe(true);
     });

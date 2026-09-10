@@ -48,7 +48,7 @@ export class RateLimiterService {
       apiKeyId: string;
       ip: string;
       endpoint: string;
-      method: string;
+      method: HttpMethod;
       userTier: string;
     },
   ): Promise<GatewayCheckResult> {
@@ -75,7 +75,7 @@ export class RateLimiterService {
       return this.buildRejectedResponse('API_KEY_REVOKED');
     }
 
-    const normalizedMethod = dto.method.toUpperCase();
+    const normalizedMethod = dto.method;
     const normalizedTier = dto.userTier.toUpperCase();
     const proxyDto: GatewayCheckDto = {
       apiKey: apiKey.id,
@@ -150,7 +150,9 @@ export class RateLimiterService {
     }
 
     const { apiKey } = validation;
-    const normalizedMethod = dto.method.toUpperCase();
+    // GatewayCheckDto uppercases and enum-validates `method` before it gets
+    // here, so it arrives already normalized and typed.
+    const normalizedMethod = dto.method;
     const normalizedTier = dto.userTier.toUpperCase();
 
     const idempotencyCacheKey = dto.idempotencyKey
