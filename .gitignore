@@ -14,3 +14,7 @@ apps/backend/dist/
 apps/frontend/.env.local
 postgres_data/
 redis_data/
+
+# Local security-audit output (/cso). Findings name exploitable paths, and
+# this repository is public - these reports stay on the machine that ran them.
+.gstack/
