@@ -2,14 +2,20 @@
 
 import { useParams } from 'next/navigation';
 import { FormEvent, useState } from 'react';
-import { AlgorithmBarChart } from '@/components/charts';
-import {
-  ErrorState,
-  LoadingState,
-} from '@/components/feedback';
+import { AlgorithmComparison } from '@/components/charts';
+import { ErrorState, LoadingState } from '@/components/feedback';
 import { PageHeader, ProjectTabs } from '@/components/layout';
-import { MetricCard, Panel, PanelHeader } from '@/components/ui';
+import { MetricCard, Panel, PanelHeader, RankRow, SplitBar } from '@/components/ui';
 import { analyticsApi } from '@/lib/api';
+import {
+  algorithmLabel,
+  formatAbsolute,
+  formatCount,
+  formatDate,
+  formatPercent,
+  formatRelativeTime,
+  humanizeEnum,
+} from '@/lib/format';
 import { useAsyncResource } from '@/lib/hooks';
 import type {
   AlgorithmPerformanceRecord,
@@ -77,34 +83,7 @@ export default function ProjectAnalyticsPage() {
     }
   }
 
-  if (analytics.loading) {
-    return (
-      <>
-        <PageHeader eyebrow="Insights" title="Analytics" />
-        <ProjectTabs projectId={projectId} />
-        <LoadingState label="Loading analytics…" />
-      </>
-    );
-  }
-
-  if (analytics.error) {
-    return (
-      <>
-        <PageHeader eyebrow="Insights" title="Analytics" />
-        <ProjectTabs projectId={projectId} />
-        <ErrorState message={analytics.error} />
-      </>
-    );
-  }
-
-  if (!analytics.data) {
-    return <ErrorState message="Analytics data is unavailable." />;
-  }
-
-  const { overview, ips, endpoints, algorithms, logs, snapshots } =
-    analytics.data;
-
-  return (
+  const header = (
     <>
       <PageHeader
         crumbs={[
@@ -114,53 +93,106 @@ export default function ProjectAnalyticsPage() {
         ]}
         eyebrow="Insights"
         title="Analytics"
-        description="Inspect trends, top offenders, and algorithm performance."
+        description="Who is calling, what they are calling, and which rule decided."
       />
       <ProjectTabs projectId={projectId} />
+    </>
+  );
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  if (analytics.loading) {
+    return (
+      <>
+        {header}
+        <LoadingState label="Loading analytics…" />
+      </>
+    );
+  }
+
+  if (analytics.error) {
+    return (
+      <>
+        {header}
+        <ErrorState message={analytics.error} />
+      </>
+    );
+  }
+
+  if (!analytics.data) {
+    return (
+      <>
+        {header}
+        <ErrorState message="Analytics data is unavailable." />
+      </>
+    );
+  }
+
+  const { overview, ips, endpoints, algorithms, logs, snapshots } =
+    analytics.data;
+
+  const maxIp = ips[0]?.requests ?? 0;
+  const maxEndpoint = endpoints.reduce(
+    (max, item) => Math.max(max, item.requests),
+    0,
+  );
+
+  return (
+    <>
+      {header}
+
+      {/* Two counts and a rate. `Total` is the sum of the other two, so it sits
+          apart from them rather than being a fourth peer tile. */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard
-          label="Total requests"
-          value={overview.totalRequests.toLocaleString()}
-          tone="brand"
-        />
-        <MetricCard
-          label="Allowed"
-          value={overview.allowedRequests.toLocaleString()}
-          tone="success"
+          label="Requests"
+          value={formatCount(overview.totalRequests)}
+          hint="Decisions made by the gateway"
         />
         <MetricCard
           label="Blocked"
-          value={overview.blockedRequests.toLocaleString()}
+          value={formatCount(overview.blockedRequests)}
           tone="danger"
+          hint={`${formatPercent(overview.blockRate)} of all requests`}
         />
         <MetricCard
-          label="Block rate"
-          value={`${overview.blockRate}%`}
-          tone="warning"
+          label="Allowed"
+          value={formatCount(overview.allowedRequests)}
+          tone="success"
+          hint={`${formatPercent(100 - overview.blockRate)} of all requests`}
         />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-5">
+      <Panel className="mt-4">
+        <SplitBar
+          allowed={overview.allowedRequests}
+          blocked={overview.blockedRequests}
+        />
+      </Panel>
+
+      <div className="mt-4 grid gap-4 lg:grid-cols-5">
         <Panel className="lg:col-span-3">
-          <PanelHeader eyebrow="Performance" title="Algorithm comparison" />
-          <div className="mt-4">
-            <AlgorithmBarChart data={algorithms} />
+          <PanelHeader
+            eyebrow="Performance"
+            title="Algorithm comparison"
+            description="Share of traffic and decision latency, per strategy in use."
+          />
+          <div className="mt-5">
+            <AlgorithmComparison data={algorithms} />
           </div>
         </Panel>
+
         <Panel className="lg:col-span-2">
           <PanelHeader
             eyebrow="Snapshots"
-            title="Generate a window"
-            description="Freeze a reporting window for compliance or sharing."
+            title="Freeze a window"
+            description="Captures the current totals for a period so they can be shared or audited later."
           />
           <form
             className="mt-5 flex flex-wrap items-end gap-3"
             onSubmit={generateSnapshot}
           >
-            <div className="min-w-[160px] flex-1">
+            <div className="min-w-[150px] flex-1">
               <label className="label" htmlFor="snapshot-window">
-                Window
+                Period
               </label>
               <select
                 id="snapshot-window"
@@ -175,28 +207,36 @@ export default function ProjectAnalyticsPage() {
               </select>
             </div>
             <button type="submit" className="btn-primary" disabled={pending}>
-              {pending ? 'Generating…' : 'Generate'}
+              {pending ? 'Capturing…' : 'Capture'}
             </button>
           </form>
-          <div className="mt-5 space-y-2">
-            {snapshots.slice(0, 4).length === 0 ? (
-              <p className="text-xs text-slate-500">No snapshots yet.</p>
+
+          <div className="mt-5 space-y-1.5">
+            {snapshots.length === 0 ? (
+              <p className="text-xs text-slate-500">
+                None captured yet. A snapshot records the totals at the moment
+                you take it.
+              </p>
             ) : (
               snapshots.slice(0, 4).map((snapshot) => (
                 <div
                   key={snapshot.id}
-                  className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5"
+                  className="flex items-baseline justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2"
                 >
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-800">
-                      {snapshot.window}
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-800">
+                      {humanizeEnum(snapshot.window)}
                     </p>
-                    <span className="badge-neutral">snapshot</span>
+                    <p
+                      className="truncate text-2xs text-slate-500"
+                      title={`${formatAbsolute(snapshot.periodStart)} → ${formatAbsolute(snapshot.periodEnd)}`}
+                    >
+                      {formatDate(snapshot.periodStart)} → {formatDate(snapshot.periodEnd)}
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {new Date(snapshot.periodStart).toLocaleString()} →{' '}
-                    {new Date(snapshot.periodEnd).toLocaleString()}
-                  </p>
+                  <span className="num shrink-0 font-mono text-xs text-slate-600">
+                    {formatCount(snapshot.totalRequests)}
+                  </span>
                 </div>
               ))
             )}
@@ -204,123 +244,135 @@ export default function ProjectAnalyticsPage() {
         </Panel>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
-        <Panel>
-          <PanelHeader eyebrow="Top offenders" title="IP addresses" />
-          <ul className="mt-4 divide-y divide-slate-100">
-            {ips.length === 0 ? (
-              <li className="py-3 text-sm text-slate-500">No data yet.</li>
-            ) : (
-              ips.map((item) => (
-                <li
+      <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <Panel padding={false}>
+          <div className="p-5 pb-3 sm:p-6 sm:pb-3">
+            <PanelHeader
+              eyebrow="Callers"
+              title="Source addresses"
+              description="Ranked by volume. The bar is each address's share of the busiest."
+            />
+          </div>
+          {ips.length === 0 ? (
+            <p className="px-5 pb-6 text-sm text-slate-500 sm:px-6">
+              No requests recorded yet.
+            </p>
+          ) : (
+            <ul className="px-2 pb-4">
+              {ips.map((item) => (
+                <RankRow
                   key={item.ip}
-                  className="flex items-center justify-between py-2.5 text-sm"
-                >
-                  <span className="font-mono text-slate-700">{item.ip}</span>
-                  <span className="badge-neutral">{item.requests}</span>
-                </li>
-              ))
-            )}
-          </ul>
+                  label={item.ip}
+                  value={item.requests}
+                  max={maxIp}
+                  mono
+                />
+              ))}
+            </ul>
+          )}
         </Panel>
-        <Panel>
-          <PanelHeader eyebrow="Most used" title="Endpoints" />
-          <ul className="mt-4 divide-y divide-slate-100">
-            {endpoints.length === 0 ? (
-              <li className="py-3 text-sm text-slate-500">No data yet.</li>
-            ) : (
-              endpoints.map((item) => (
-                <li
+
+        <Panel padding={false}>
+          <div className="p-5 pb-3 sm:p-6 sm:pb-3">
+            <PanelHeader
+              eyebrow="Traffic"
+              title="Endpoints"
+              description="Which paths the gateway is being asked about most."
+            />
+          </div>
+          {endpoints.length === 0 ? (
+            <p className="px-5 pb-6 text-sm text-slate-500 sm:px-6">
+              No requests recorded yet.
+            </p>
+          ) : (
+            <ul className="px-2 pb-4">
+              {endpoints.map((item) => (
+                <RankRow
                   key={`${item.method}-${item.endpoint}`}
-                  className="flex items-center justify-between gap-3 py-2.5 text-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate">
-                      <span className="badge-info mr-2 !py-0 !text-2xs">
-                        {item.method}
-                      </span>
-                      <span className="font-mono text-slate-800">
-                        {item.endpoint}
-                      </span>
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs text-slate-500">
-                    {item.requests}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
+                  label={`${item.method} ${item.endpoint}`}
+                  value={item.requests}
+                  max={maxEndpoint}
+                  mono
+                />
+              ))}
+            </ul>
+          )}
         </Panel>
       </div>
 
-      <div className="mt-6">
-        <Panel padding={false}>
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 sm:px-6">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">
-                Activity
-              </p>
-              <h2 className="mt-1 text-lg font-semibold text-slate-900">
-                Recent request logs
-              </h2>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="tbl">
-              <thead>
+      <Panel className="mt-4" padding={false}>
+        <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+          <p className="eyebrow">Activity</p>
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">
+            Latest decisions
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            The {logs.length} most recent requests the gateway ruled on.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="tbl min-w-[46rem]">
+            <thead>
+              <tr>
+                <th scope="col" className="w-24">When</th>
+                <th scope="col">Decision</th>
+                <th scope="col">Source</th>
+                <th scope="col">Request</th>
+                <th scope="col">Matched by</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.length === 0 ? (
                 <tr>
-                  <th>Time</th>
-                  <th>IP</th>
-                  <th>Endpoint</th>
-                  <th>Decision</th>
-                  <th>Algorithm</th>
+                  <td colSpan={5} className="py-8 text-center text-slate-500">
+                    Nothing has hit the gateway yet.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {logs.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center text-slate-500">
-                      No requests yet.
+              ) : (
+                logs.map((item) => (
+                  <tr key={item.id}>
+                    <td
+                      className="num whitespace-nowrap text-xs text-slate-500"
+                      title={formatAbsolute(item.createdAt)}
+                    >
+                      {formatRelativeTime(item.createdAt)}
+                    </td>
+                    <td>
+                      <span
+                        className={
+                          item.decision === 'BLOCKED'
+                            ? 'badge-danger'
+                            : 'badge-success'
+                        }
+                      >
+                        {item.decision === 'BLOCKED' ? 'Blocked' : 'Allowed'}
+                      </span>
+                    </td>
+                    <td className="font-mono text-xs text-slate-700">
+                      {item.ipAddress}
+                    </td>
+                    <td className="font-mono text-xs text-slate-700">
+                      <span className="text-slate-500">{item.method}</span>{' '}
+                      {item.endpoint}
+                    </td>
+                    <td className="text-xs">
+                      {/* The rule is the answer to "why was this blocked?", and
+                          the log carries it — the old table showed only the
+                          algorithm, which is the rule's implementation detail. */}
+                      <span className="text-slate-700">
+                        {item.rule?.name ?? 'No rule matched'}
+                      </span>
+                      <span className="block text-2xs text-slate-500">
+                        {algorithmLabel(item.algorithm)}
+                      </span>
                     </td>
                   </tr>
-                ) : (
-                  logs.map((item) => (
-                    <tr key={item.id}>
-                      <td className="whitespace-nowrap text-xs text-slate-500">
-                        {new Date(item.createdAt).toLocaleString()}
-                      </td>
-                      <td className="font-mono text-xs">{item.ipAddress}</td>
-                      <td className="min-w-[200px]">
-                        <span className="badge-info mr-2 !py-0 !text-2xs">
-                          {item.method}
-                        </span>
-                        <span className="font-mono text-xs">
-                          {item.endpoint}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className={
-                            item.decision === 'BLOCKED'
-                              ? 'badge-danger'
-                              : 'badge-success'
-                          }
-                        >
-                          {item.decision}
-                        </span>
-                      </td>
-                      <td className="text-xs text-slate-600">
-                        {item.algorithm}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-      </div>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
     </>
   );
 }

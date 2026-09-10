@@ -2,39 +2,24 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { AlgorithmBarChart, RequestsDonut } from '@/components/charts';
-import {
-  EmptyState,
-  ErrorState,
-  LoadingState,
-} from '@/components/feedback';
-import { ArrowRightIcon } from '@/components/icons';
+import { EmptyState, ErrorState, LoadingState } from '@/components/feedback';
 import { PageHeader } from '@/components/layout';
-import { MetricCard, Panel, PanelHeader } from '@/components/ui';
+import { MetricCard, Panel, SplitBar } from '@/components/ui';
 import { analyticsApi, projectsApi } from '@/lib/api';
-import {
-  AlgorithmPerformanceRecord,
-  AnalyticsOverview,
-  ProjectSummary,
-  RequestLogRecord,
-  TopEndpointRecord,
-  TopIpRecord,
-} from '@/lib/types';
+import { formatCount, formatPercent } from '@/lib/format';
+import type { AnalyticsOverview, ProjectSummary } from '@/lib/types';
 
-interface DashboardData {
+interface ProjectRow {
   project: ProjectSummary;
-  overview: AnalyticsOverview;
-  topIps: TopIpRecord[];
-  topEndpoints: TopEndpointRecord[];
-  algorithms: AlgorithmPerformanceRecord[];
-  logs: RequestLogRecord[];
+  overview: AnalyticsOverview | null;
 }
+
+const EMPTY_TOTALS = { total: 0, allowed: 0, blocked: 0 };
 
 export default function DashboardOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [hasProjects, setHasProjects] = useState(true);
-  const [data, setData] = useState<DashboardData | null>(null);
+  const [rows, setRows] = useState<ProjectRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,35 +28,30 @@ export default function DashboardOverviewPage() {
       try {
         setLoading(true);
         const projects = await projectsApi.list();
-        const project = projects[0] ?? null;
-
         if (cancelled) return;
 
-        if (!project) {
-          setHasProjects(false);
-          setData(null);
-          return;
-        }
-
-        const [overview, topIps, topEndpoints, algorithms, logs] =
-          await Promise.all([
-            analyticsApi.overview(project.id),
-            analyticsApi.topIps(project.id, 5),
-            analyticsApi.topEndpoints(project.id, 5),
-            analyticsApi.algorithms(project.id),
-            analyticsApi.logs(project.id, 8),
-          ]);
-
+        // The page used to show `projects[0]` under the title "Operator
+        // dashboard", so an operator with three projects saw one of them and no
+        // indication which others existed. It now covers all of them.
+        const overviews = await Promise.all(
+          projects.map((project) =>
+            analyticsApi.overview(project.id).catch(() => null),
+          ),
+        );
         if (cancelled) return;
 
-        setHasProjects(true);
-        setData({ project, overview, topIps, topEndpoints, algorithms, logs });
+        setRows(
+          projects.map((project, index) => ({
+            project,
+            overview: overviews[index],
+          })),
+        );
       } catch (caughtError) {
         if (cancelled) return;
         setError(
           caughtError instanceof Error
             ? caughtError.message
-            : 'Failed to load dashboard',
+            : 'Failed to load the overview',
         );
       } finally {
         if (!cancelled) setLoading(false);
@@ -79,21 +59,29 @@ export default function DashboardOverviewPage() {
     }
 
     void load();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const header = (
+    <PageHeader
+      eyebrow="Overview"
+      title="Every project you operate"
+      description="Traffic and enforcement across the projects you can see."
+      actions={
+        <Link href="/projects" className="btn-secondary">
+          Manage projects
+        </Link>
+      }
+    />
+  );
+
   if (loading) {
     return (
       <>
-        <PageHeader
-          eyebrow="Overview"
-          title="Operator dashboard"
-          description="Real-time view of how your APIs are being protected."
-        />
-        <LoadingState label="Loading the operator overview…" />
+        {header}
+        <LoadingState label="Loading your projects…" />
       </>
     );
   }
@@ -101,19 +89,19 @@ export default function DashboardOverviewPage() {
   if (error) {
     return (
       <>
-        <PageHeader eyebrow="Overview" title="Operator dashboard" />
+        {header}
         <ErrorState message={error} />
       </>
     );
   }
 
-  if (!hasProjects || !data) {
+  if (rows.length === 0) {
     return (
       <>
-        <PageHeader eyebrow="Overview" title="Operator dashboard" />
+        {header}
         <EmptyState
           title="No projects yet"
-          description="Create your first protected API project to start generating keys, rules, and analytics."
+          description="A project is one API surface — its own keys, its own rules, its own traffic. Create one to start enforcing limits."
           href="/projects"
           actionLabel="Create a project"
         />
@@ -121,161 +109,130 @@ export default function DashboardOverviewPage() {
     );
   }
 
-  const { project, overview, topIps, topEndpoints, algorithms, logs } = data;
+  const totals = rows.reduce((sum, row) => {
+    if (!row.overview) return sum;
+    return {
+      total: sum.total + row.overview.totalRequests,
+      allowed: sum.allowed + row.overview.allowedRequests,
+      blocked: sum.blocked + row.overview.blockedRequests,
+    };
+  }, EMPTY_TOTALS);
+
+  const blockRate = totals.total > 0 ? (totals.blocked / totals.total) * 100 : 0;
+  const busiest = Math.max(
+    ...rows.map((row) => row.overview?.totalRequests ?? 0),
+    0,
+  );
 
   return (
     <>
-      <PageHeader
-        eyebrow="Overview"
-        title="Operator dashboard"
-        description={
-          <>
-            Showing data for{' '}
-            <span className="font-medium text-slate-700">{project.name}</span> ·{' '}
-            <span className="badge-neutral !ml-1 !py-0">
-              {project.environment}
-            </span>
-          </>
-        }
-        actions={
-          <Link
-            href={`/projects/${project.id}/analytics`}
-            className="btn-secondary"
-          >
-            Full analytics
-            <ArrowRightIcon className="h-4 w-4" />
-          </Link>
-        }
-      />
+      {header}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Two-up on phones rather than four full-width cards, which used to take
+          the entire first screen before any content appeared. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <MetricCard
-          label="Total requests"
-          value={overview.totalRequests.toLocaleString()}
-          tone="brand"
+          label="Projects"
+          value={formatCount(rows.length)}
+          hint={`${rows.filter((r) => r.project.isActive).length} active`}
         />
         <MetricCard
-          label="Allowed"
-          value={overview.allowedRequests.toLocaleString()}
-          tone="success"
+          label="Requests"
+          value={formatCount(totals.total)}
+          hint="Across all projects"
         />
         <MetricCard
           label="Blocked"
-          value={overview.blockedRequests.toLocaleString()}
+          value={formatCount(totals.blocked)}
           tone="danger"
+          hint={`${formatPercent(blockRate)} of all requests`}
         />
         <MetricCard
-          label="Block rate"
-          value={`${overview.blockRate}%`}
-          tone="warning"
+          label="Allowed"
+          value={formatCount(totals.allowed)}
+          tone="success"
+          hint={`${formatPercent(100 - blockRate)} of all requests`}
         />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-5">
-        <Panel className="lg:col-span-3">
-          <PanelHeader
-            eyebrow="Algorithm comparison"
-            title="Throughput by strategy"
-            description="How requests are distributed across active rate-limit algorithms."
-          />
-          <div className="mt-4">
-            <AlgorithmBarChart data={algorithms} />
-          </div>
-        </Panel>
-        <Panel className="lg:col-span-2">
-          <PanelHeader
-            eyebrow="Request outcomes"
-            title="Allowed vs blocked"
-          />
-          <div className="mt-4">
-            <RequestsDonut
-              allowed={overview.allowedRequests}
-              blocked={overview.blockedRequests}
-            />
-          </div>
-        </Panel>
-      </div>
+      <Panel className="mt-4">
+        <SplitBar allowed={totals.allowed} blocked={totals.blocked} />
+      </Panel>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-3">
-        <Panel>
-          <PanelHeader eyebrow="Top offenders" title="IP addresses" />
-          <ul className="mt-4 divide-y divide-slate-100">
-            {topIps.length === 0 ? (
-              <li className="py-3 text-sm text-slate-500">No data yet.</li>
-            ) : (
-              topIps.map((item) => (
-                <li
-                  key={item.ip}
-                  className="flex items-center justify-between py-2.5 text-sm"
-                >
-                  <span className="font-mono text-slate-700">{item.ip}</span>
-                  <span className="badge-neutral">{item.requests}</span>
-                </li>
-              ))
-            )}
-          </ul>
-        </Panel>
-        <Panel>
-          <PanelHeader eyebrow="Most used" title="Endpoints" />
-          <ul className="mt-4 divide-y divide-slate-100">
-            {topEndpoints.length === 0 ? (
-              <li className="py-3 text-sm text-slate-500">No data yet.</li>
-            ) : (
-              topEndpoints.map((item) => (
-                <li
-                  key={`${item.method}-${item.endpoint}`}
-                  className="flex items-center justify-between gap-3 py-2.5 text-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-slate-800">
-                      <span className="badge-info mr-2 !py-0 !text-2xs">
-                        {item.method}
+      <Panel className="mt-4" padding={false}>
+        <div className="border-b border-slate-200 px-5 py-4 sm:px-6">
+          <p className="eyebrow">Projects</p>
+          <h2 className="mt-1 text-lg font-semibold text-slate-900">
+            Traffic by project
+          </h2>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="tbl min-w-[44rem]">
+            <thead>
+              <tr>
+                <th scope="col">Project</th>
+                <th scope="col">Environment</th>
+                <th scope="col" className="w-48">Allowed vs blocked</th>
+                <th scope="col" className="!text-right">Requests</th>
+                <th scope="col" className="!text-right">Block rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(({ project, overview }) => {
+                const requests = overview?.totalRequests ?? 0;
+                return (
+                  <tr key={project.id}>
+                    <td>
+                      <Link
+                        href={`/projects/${project.id}`}
+                        className="font-medium text-slate-900 underline decoration-transparent underline-offset-[3px] transition-colors duration-state hover:decoration-slate-400"
+                      >
+                        {project.name}
+                      </Link>
+                      <p className="mt-0.5 text-2xs text-slate-500">
+                        {formatCount(project._count?.rules ?? 0)} rules ·{' '}
+                        {formatCount(project._count?.apiKeys ?? 0)} keys
+                      </p>
+                    </td>
+                    <td>
+                      <span className="badge-neutral">{project.environment}</span>
+                    </td>
+                    <td>
+                      {requests > 0 ? (
+                        <SplitBar
+                          allowed={overview?.allowedRequests ?? 0}
+                          blocked={overview?.blockedRequests ?? 0}
+                          showLegend={false}
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-400">No traffic</span>
+                      )}
+                    </td>
+                    <td className="!text-right">
+                      <span
+                        className="num font-mono text-slate-800"
+                        title={
+                          busiest > 0 && requests === busiest
+                            ? 'Busiest project'
+                            : undefined
+                        }
+                      >
+                        {formatCount(requests)}
                       </span>
-                      <span className="font-mono">{item.endpoint}</span>
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-xs text-slate-500">
-                    {item.requests}
-                  </span>
-                </li>
-              ))
-            )}
-          </ul>
-        </Panel>
-        <Panel>
-          <PanelHeader eyebrow="Activity" title="Recent requests" />
-          <ul className="mt-4 space-y-2.5">
-            {logs.length === 0 ? (
-              <li className="text-sm text-slate-500">No activity yet.</li>
-            ) : (
-              logs.slice(0, 5).map((item) => (
-                <li
-                  key={item.id}
-                  className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2.5"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate font-mono text-xs text-slate-800">
-                      {item.endpoint}
-                    </p>
-                    <span
-                      className={
-                        item.decision === 'BLOCKED'
-                          ? 'badge-danger !py-0'
-                          : 'badge-success !py-0'
-                      }
-                    >
-                      {item.decision}
-                    </span>
-                  </div>
-                  <p className="mt-1 truncate text-xs text-slate-500">
-                    {item.method} · {item.ipAddress} · {item.algorithm}
-                  </p>
-                </li>
-              ))
-            )}
-          </ul>
-        </Panel>
-      </div>
+                    </td>
+                    <td className="!text-right">
+                      <span className="num font-mono text-slate-800">
+                        {requests > 0 ? formatPercent(overview?.blockRate ?? 0) : '—'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Panel>
     </>
   );
 }

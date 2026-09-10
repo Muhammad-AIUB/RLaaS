@@ -1,14 +1,19 @@
 import clsx from 'clsx';
 import { ReactNode } from 'react';
 
-export type MetricTone = 'neutral' | 'success' | 'danger' | 'warning' | 'brand';
+export type MetricTone = 'neutral' | 'success' | 'danger' | 'warning';
 
-const toneStyles: Record<MetricTone, { dot: string; text: string }> = {
-  neutral: { dot: 'bg-slate-400', text: 'text-slate-700' },
-  success: { dot: 'bg-emerald-500', text: 'text-emerald-700' },
-  danger: { dot: 'bg-red-500', text: 'text-red-700' },
-  warning: { dot: 'bg-amber-500', text: 'text-amber-700' },
-  brand: { dot: 'bg-brand-600', text: 'text-brand-700' },
+/**
+ * Tone colors the number itself, and only for tones that report a decision —
+ * allowed, blocked, degraded. A neutral count stays ink. The card previously
+ * carried a small colored dot beside the label, which spent color on decoration
+ * and told a reader nothing they could not get from the label.
+ */
+const toneValue: Record<MetricTone, string> = {
+  neutral: 'text-slate-900',
+  success: 'text-emerald-700',
+  danger: 'text-red-700',
+  warning: 'text-amber-700',
 };
 
 export interface MetricCardProps {
@@ -26,22 +31,20 @@ export function MetricCard({
   hint,
   trend,
 }: MetricCardProps) {
-  const t = toneStyles[tone];
-
   return (
-    <div className="card p-5 transition hover:shadow-card-hover sm:p-6">
-      <div className="flex items-center gap-2">
-        <span className={clsx('h-1.5 w-1.5 rounded-full', t.dot)} aria-hidden />
-        <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-          {label}
-        </p>
-      </div>
-      <p className="mt-3 text-2xl font-semibold text-slate-900 sm:text-3xl">
+    <div className="card p-4 sm:p-5">
+      <p className="eyebrow">{label}</p>
+      <p
+        className={clsx(
+          'num mt-2 text-2xl font-semibold tracking-tight sm:text-[1.75rem]',
+          toneValue[tone],
+        )}
+      >
         {value}
       </p>
       {hint ? <p className="mt-1 text-xs text-slate-500">{hint}</p> : null}
       {trend ? (
-        <div className={clsx('mt-2 text-xs font-medium', t.text)}>{trend}</div>
+        <div className="mt-2 text-xs font-medium text-slate-600">{trend}</div>
       ) : null}
     </div>
   );
