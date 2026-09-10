@@ -12,6 +12,7 @@
  *   3. the algorithms directly, including a deterministic clock-skew case
  */
 
+import { Agent, request as httpRequest } from 'node:http';
 import { RuleAlgorithm } from '@prisma/client';
 import { AlgorithmRegistryService } from '../../src/algorithms/algorithm-registry.service';
 import { RateLimitAlgorithm } from '../../src/algorithms/algorithm.enum';
@@ -74,7 +75,15 @@ describe('limit leakage under concurrency', () => {
     });
   };
 
-  /** Fires N gateway checks that are all in flight simultaneously. */
+  /**
+   * Fires N gateway checks that are all in flight simultaneously.
+   *
+   * Raw `http.request` on an agent with no socket ceiling, rather than
+   * `fetch`. Node's fetch pools connections through undici, and how many it
+   * opens is a property of the runtime and the machine — precisely the kind of
+   * hidden variable that made this file's earlier concurrency checks pass on a
+   * dev box and fail in CI. One socket per request, no keep-alive, no pool.
+   */
   const burst = async (endpoint: string, count = BURST) => {
     const payload = (index: number) =>
       JSON.stringify({
@@ -85,18 +94,51 @@ describe('limit leakage under concurrency', () => {
         userTier: 'free',
       });
 
-    return Promise.all(
-      Array.from({ length: count }, (_unused, index) =>
-        fetch(gatewayUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: payload(index),
-        }).then(async (response) => ({
-          status: response.status,
-          body: (await response.json()) as Record<string, unknown>,
-        })),
-      ),
-    );
+    const target = new URL(gatewayUrl);
+    const agent = new Agent({ keepAlive: false, maxSockets: Infinity });
+
+    const once = (index: number) =>
+      new Promise<{ status: number; body: Record<string, unknown> }>(
+        (resolve, reject) => {
+          const body = payload(index);
+          const request = httpRequest(
+            {
+              agent,
+              hostname: target.hostname,
+              port: target.port,
+              path: target.pathname,
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body),
+              },
+            },
+            (response) => {
+              let raw = '';
+              response.setEncoding('utf8');
+              response.on('data', (chunk) => {
+                raw += chunk;
+              });
+              response.on('end', () =>
+                resolve({
+                  status: response.statusCode ?? 0,
+                  body: JSON.parse(raw) as Record<string, unknown>,
+                }),
+              );
+            },
+          );
+          request.on('error', reject);
+          request.end(body);
+        },
+      );
+
+    try {
+      return await Promise.all(
+        Array.from({ length: count }, (_unused, index) => once(index)),
+      );
+    } finally {
+      agent.destroy();
+    }
   };
 
   beforeAll(async () => {
@@ -123,39 +165,58 @@ describe('limit leakage under concurrency', () => {
     it('lets exactly 10 of 100 simultaneous requests through', async () => {
       seedRule(RuleAlgorithm.FIXED_WINDOW);
 
-      // A burst that is secretly serial would prove nothing, so measure how many
-      // requests are genuinely being served at the same moment: the span from
-      // the server accepting a request to it closing the response, which
-      // contains the Redis round trip the limiter actually runs in.
+      // A burst that is secretly serial would prove nothing, so the overlap has
+      // to be GUARANTEED, not hoped for and measured afterwards.
       //
-      // This used to wrap the in-memory rule lookup instead and assert its
-      // depth. That counted how many handlers resumed in a single microtask
-      // drain, which is just how many Redis replies arrived in one TCP data
-      // event: ~64 against a loopback Redis, 5 against a containerised one on a
-      // 2-vCPU CI runner. It measured the transport, not the limiter, so CI
-      // failed on a machine where the limiter was behaving perfectly.
+      // Two earlier versions measured instead, and both were really measuring
+      // the machine. Counting depth inside the in-memory rule lookup counted
+      // how many Redis replies landed in one TCP data event (~64 on loopback,
+      // 5 against a containerised Redis). Counting live HTTP requests counted
+      // arrival rate against service rate (~96 on 8 cores, 4 on a 2-vCPU CI
+      // runner, where the server drains requests about as fast as they arrive).
+      //
+      // So hold every request at the rule lookup — which sits immediately
+      // before consume() — until all BURST of them have arrived, then release
+      // them together. Nothing can complete while the gate is shut, so arrivals
+      // accumulate regardless of how few the machine would otherwise overlap,
+      // and the limiter is provably resolving 100 callers at once.
+      let arrived = 0;
+      let openGate!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        openGate = resolve;
+      });
+      // Safety valve: if a machine genuinely cannot hold BURST requests open,
+      // fail on the assertion below with a real number rather than hanging
+      // until the jest timeout.
+      const bailout = setTimeout(() => openGate(), 10_000);
+
       let inFlight = 0;
       let peakInFlight = 0;
-      const server = ctx.app.getHttpServer();
-      const observe = (_request: unknown, response: { on: (event: string, listener: () => void) => void }) => {
+      const findMany = ctx.prisma.rateLimitRule.findMany;
+      ctx.prisma.rateLimitRule.findMany = (async (args: any) => {
         inFlight += 1;
         peakInFlight = Math.max(peakInFlight, inFlight);
-        response.on('close', () => {
+        arrived += 1;
+        if (arrived >= BURST) openGate();
+        await gate;
+        try {
+          return await findMany(args);
+        } finally {
           inFlight -= 1;
-        });
-      };
-      server.on('request', observe);
+        }
+      }) as typeof findMany;
 
       let responses;
       try {
         responses = await burst('/api/products');
       } finally {
-        server.off('request', observe);
+        clearTimeout(bailout);
+        ctx.prisma.rateLimitRule.findMany = findMany;
       }
 
-      // More requests were in flight at once than the limit itself, which is
+      // Every request was inside the limiter path at the same moment, which is
       // the condition under which a non-atomic limiter leaks.
-      expect(peakInFlight).toBeGreaterThan(LIMIT);
+      expect(peakInFlight).toBe(BURST);
 
       const allowed = responses.filter((response) => response.body.allowed === true);
       const blocked = responses.filter((response) => response.body.allowed === false);
