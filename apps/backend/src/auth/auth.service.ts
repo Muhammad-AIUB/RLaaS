@@ -22,15 +22,36 @@ import { UsersService } from '../users/users.service';
 const RESET_CODE_TTL = 600; // 10 minutes
 
 /**
- * bcrypt work factor.
+ * bcrypt work factor, chosen for the hardware this runs on.
  *
- * Was 8, which is below current guidance (10-12) and roughly 16x cheaper to
- * attack offline than 12. Combined with a register DTO that asks only for
- * MinLength(8) and no complexity, a leaked `password_hash` column would fall
- * to a wordlist quickly. Raising it only helps hashes written from now on, so
- * `login` re-hashes an older one after it verifies (see rehashIfOutdatedCost).
+ * 8 was too low: below current guidance (10-12) and cheap to attack offline,
+ * with a register DTO that asks only for MinLength(8) and no complexity.
+ *
+ * 12 was too high FOR THIS BOX, which is the part that is easy to miss. The
+ * API runs on a Render free instance at 0.1 vCPU. Measured on the deployed
+ * service:
+ *
+ *   login, unknown email (no hash runs)     ~250-380ms
+ *   login, real account at cost 12       2,409-2,760ms
+ *   register at cost 12                     2,374ms
+ *
+ * So one hash cost ~2.1s of CPU. bcryptjs is pure JavaScript, so that work
+ * lands on the same thread that serves every other request: /health, which
+ * touches nothing but Redis, went from 234ms to 727ms p50 (3.1x) while a
+ * single password was being hashed. One person signing in slowed the whole
+ * API down.
+ *
+ * It is also more CPU than the instance has. 0.1 vCPU is ~6 seconds of CPU per
+ * minute; the login throttle allows 10 attempts per minute per IP, which at
+ * cost 12 demands ~21 seconds. A single address could saturate the box just by
+ * failing to log in.
+ *
+ * 10 is the low end of guidance and 4x cheaper: ~490ms of CPU per hash here,
+ * and ~4.9s per minute against a 6s budget. If this ever moves to a plan with
+ * a real CPU allocation, raise it back to 12 — the number is a function of the
+ * hardware, not of the password policy.
  */
-const BCRYPT_COST = 12;
+const BCRYPT_COST = 10;
 
 /**
  * Same body whether or not the email is registered, so the endpoint stays
@@ -151,12 +172,19 @@ export class AuthService {
     try {
       const cost = Number(storedHash.split('$')[2]);
 
-      if (!Number.isFinite(cost) || cost >= BCRYPT_COST) {
+      /**
+       * Any cost that is not the current target gets rewritten, in EITHER
+       * direction. `>= BCRYPT_COST` would have been enough while the number
+       * only ever went up, but the target came back down from 12 to 10 for
+       * hardware reasons, and accounts hashed at 12 during that window would
+       * otherwise keep paying ~2.1s of CPU on every sign-in forever.
+       */
+      if (!Number.isFinite(cost) || cost === BCRYPT_COST) {
         return;
       }
 
-      const upgraded = await hash(plainPassword, BCRYPT_COST);
-      await this.usersService.updatePassword(email, upgraded);
+      const rehashed = await hash(plainPassword, BCRYPT_COST);
+      await this.usersService.updatePassword(email, rehashed);
     } catch (error) {
       this.logger.error(
         `Password rehash failed for ${email}: ${

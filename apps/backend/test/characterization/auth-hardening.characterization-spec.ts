@@ -346,38 +346,66 @@ describe('auth hardening regressions', () => {
   });
 
   /**
-   * DEFECT: hash(password, 8) is below current guidance (10-12) and roughly
-   * 16x cheaper to attack offline than 12.
+   * hash(password, 8) was below guidance (10-12). hash(password, 12) was above
+   * what a 0.1 vCPU Render free instance can pay for: measured on the deployed
+   * service, one cost-12 hash took ~2.1s of CPU, made login 2.4s, and inflated
+   * unrelated /health calls 3.1x while it ran.
+   *
+   * 10 is the number this hardware can afford. It is pinned here in BOTH
+   * directions on purpose — a hash left at 12 keeps costing 2.1s per sign-in
+   * forever, so the rehash has to bring it down as well as up.
    */
   describe('password hashing cost', () => {
-    it('writes new passwords at cost 12', async () => {
+    const costOf = (h: string) => h.split('$')[2];
+
+    it('writes new passwords at the current work factor', async () => {
       await registerUser();
 
-      const stored = ctx.prisma.users[0].passwordHash as string;
-      expect(stored.split('$')[2]).toBe('12');
+      expect(costOf(ctx.prisma.users[0].passwordHash as string)).toBe('10');
     });
 
-    it('upgrades an older hash on the next successful login', async () => {
+    it('raises a hash that is weaker than the target', async () => {
       await registerUser();
 
-      // Simulate an account created before the change, at the old cost.
       const { hash } = await import('bcryptjs');
       ctx.prisma.users[0].passwordHash = await hash(PASSWORD, 8);
-      expect((ctx.prisma.users[0].passwordHash as string).split('$')[2]).toBe('08');
+      expect(costOf(ctx.prisma.users[0].passwordHash as string)).toBe('08');
 
       const login = await post('login', { email: EMAIL, password: PASSWORD });
       expect(login.status).toBe(201);
 
-      // The rehash is fire-and-forget so the caller is not made to wait.
+      // Fire-and-forget, so the caller is not made to wait for it.
       const cost = await waitForHashCost(
         () => ctx.prisma.users[0].passwordHash as string,
-        '12',
+        '10',
       );
 
-      expect(cost).toBe('12');
+      expect(cost).toBe('10');
     });
 
-    it('leaves a login working after the upgrade', async () => {
+    /**
+     * The direction that a `>=` guard would have missed. Accounts hashed at 12
+     * during the window it was the target would otherwise never come back down.
+     */
+    it('lowers a hash that is more expensive than the target', async () => {
+      await registerUser();
+
+      const { hash } = await import('bcryptjs');
+      ctx.prisma.users[0].passwordHash = await hash(PASSWORD, 12);
+      expect(costOf(ctx.prisma.users[0].passwordHash as string)).toBe('12');
+
+      const login = await post('login', { email: EMAIL, password: PASSWORD });
+      expect(login.status).toBe(201);
+
+      const cost = await waitForHashCost(
+        () => ctx.prisma.users[0].passwordHash as string,
+        '10',
+      );
+
+      expect(cost).toBe('10');
+    });
+
+    it('leaves a login working after the rehash', async () => {
       await registerUser();
       const { hash } = await import('bcryptjs');
       ctx.prisma.users[0].passwordHash = await hash(PASSWORD, 8);
@@ -385,7 +413,7 @@ describe('auth hardening regressions', () => {
       await post('login', { email: EMAIL, password: PASSWORD });
       await waitForHashCost(
         () => ctx.prisma.users[0].passwordHash as string,
-        '12',
+        '10',
       );
 
       // Redis caches the user row, so a stale cache here would sign the user

@@ -79,8 +79,9 @@ async function main() {
     return;
   }
 
-  // Matches BCRYPT_COST in auth.service.ts; 8 was below current guidance.
-  const passwordHash = await bcrypt.hash(password, 12);
+  // Matches BCRYPT_COST in auth.service.ts. 8 was below guidance; 12 was more
+  // than the 0.1 vCPU free instance can pay for (~2.1s of CPU per hash there).
+  const passwordHash = await bcrypt.hash(password, 10);
   const fullName = process.env.SEED_DEMO_FULL_NAME || 'Guest Demo';
 
   const user = await prisma.user.upsert({
