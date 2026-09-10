@@ -5,6 +5,8 @@ dist/
 .next/
 coverage/
 *.log
+# TypeScript incremental build caches — rewritten by every tsc/next build run
+*.tsbuildinfo
 apps/backend/.env
 apps/backend/dist/
 apps/frontend/.env.local
