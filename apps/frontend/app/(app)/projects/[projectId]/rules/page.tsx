@@ -1,11 +1,17 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ErrorState, LoadingState } from '@/components/feedback';
 import { PageHeader, ProjectTabs } from '@/components/layout';
 import { Panel, PanelHeader } from '@/components/ui';
 import { rulesApi } from '@/lib/api';
+import {
+  algorithmLabel,
+  formatCount,
+  formatDuration,
+  scopeLabel,
+} from '@/lib/format';
 import { useAsyncResource } from '@/lib/hooks';
 import type { CreateRuleInput, RuleRecord } from '@/lib/types';
 
@@ -21,6 +27,35 @@ function readFormNumber(form: FormData, key: string): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
+/**
+ * The gateway evaluates scope classes in this fixed order and takes the first
+ * candidate that matches, so a matching IP rule beats a global rule no matter
+ * what priority number either carries. Mirrors `findMatchingRule` in
+ * `apps/backend/src/rules/rules.service.ts`.
+ */
+const SCOPE_ORDER = ['IP', 'API_KEY', 'USER_TIER', 'ENDPOINT', 'GLOBAL'];
+
+function scopeRank(scope: string): number {
+  const index = SCOPE_ORDER.indexOf(scope);
+  return index === -1 ? SCOPE_ORDER.length : index;
+}
+
+/**
+ * Sorts rules the way the gateway actually walks them: scope class first, then
+ * ascending priority (the backend orders `priority: 'asc'`, so the *lowest*
+ * number wins). Inactive rules are excluded from evaluation entirely, so they
+ * sink to the bottom and are never assigned an evaluation position.
+ */
+function inEvaluationOrder(rules: RuleRecord[]): RuleRecord[] {
+  return [...rules].sort((a, b) => {
+    if (a.isActive !== b.isActive) return a.isActive ? -1 : 1;
+    const scopeDelta = scopeRank(a.scope) - scopeRank(b.scope);
+    if (scopeDelta !== 0) return scopeDelta;
+    if (a.priority !== b.priority) return a.priority - b.priority;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 export default function RulesPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId as string;
@@ -32,6 +67,8 @@ export default function RulesPage() {
   const [pending, setPending] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<RuleRecord | null>(null);
+  const [deletingRule, setDeletingRule] = useState<RuleRecord | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
   const [editPending, setEditPending] = useState(false);
   const [editError, setEditError] = useState('');
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -109,18 +146,25 @@ export default function RulesPage() {
     }
   }
 
-  async function remove(ruleId: string) {
+  async function confirmDelete() {
+    if (!deletingRule) return;
+    setDeletePending(true);
     try {
-      await rulesApi.remove(projectId, ruleId);
+      await rulesApi.remove(projectId, deletingRule.id);
+      setDeletingRule(null);
       await rules.reload();
     } catch (caughtError) {
       rules.setError(
         caughtError instanceof Error ? caughtError.message : 'Failed to delete rule',
       );
+    } finally {
+      setDeletePending(false);
     }
   }
 
   const list = rules.data ?? [];
+  const ordered = useMemo(() => inEvaluationOrder(list), [list]);
+  const activeCount = list.filter((rule) => rule.isActive).length;
 
   return (
     <>
@@ -132,7 +176,7 @@ export default function RulesPage() {
         ]}
         eyebrow="Policy"
         title="Rate-limit rules"
-        description="Translate policy into priorities. Rules are evaluated in priority order — highest first."
+        description="Listed in the order the gateway evaluates them. The first rule that matches a request wins."
         actions={
           <button
             type="button"
@@ -153,43 +197,44 @@ export default function RulesPage() {
             onSubmit={handleCreate}
           >
             <div className="sm:col-span-2">
-              <label className="label">Name</label>
-              <input className="field" name="name" required placeholder="Throttle public endpoints" />
+              <label className="label" htmlFor="new-name">Name</label>
+              <input id="new-name" className="field" name="name" required placeholder="Throttle public endpoints" />
             </div>
             <div>
-              <label className="label">Priority</label>
-              <input className="field" name="priority" type="number" defaultValue="100" required />
+              <label className="label" htmlFor="new-priority">Priority</label>
+              <input id="new-priority" className="field" name="priority" type="number" defaultValue="100" required />
+              <p className="mt-1 text-2xs text-slate-500">Lower runs first</p>
             </div>
             <div>
-              <label className="label">Scope</label>
-              <select className="field" name="scope" defaultValue="GLOBAL">
-                <option value="IP">IP</option>
-                <option value="API_KEY">API Key</option>
-                <option value="USER_TIER">User Tier</option>
+              <label className="label" htmlFor="new-scope">Scope</label>
+              <select id="new-scope" className="field" name="scope" defaultValue="GLOBAL">
+                <option value="IP">IP address</option>
+                <option value="API_KEY">API key</option>
+                <option value="USER_TIER">User tier</option>
                 <option value="ENDPOINT">Endpoint</option>
                 <option value="GLOBAL">Global</option>
               </select>
             </div>
             <div>
-              <label className="label">Algorithm</label>
-              <select className="field" name="algorithm" defaultValue="FIXED_WINDOW">
-                <option value="FIXED_WINDOW">Fixed Window</option>
-                <option value="SLIDING_WINDOW_LOG">Sliding Window Log</option>
-                <option value="SLIDING_WINDOW_COUNTER">Sliding Window Counter</option>
-                <option value="TOKEN_BUCKET">Token Bucket</option>
+              <label className="label" htmlFor="new-algorithm">Algorithm</label>
+              <select id="new-algorithm" className="field" name="algorithm" defaultValue="FIXED_WINDOW">
+                <option value="FIXED_WINDOW">Fixed window</option>
+                <option value="SLIDING_WINDOW_LOG">Sliding window log</option>
+                <option value="SLIDING_WINDOW_COUNTER">Sliding window counter</option>
+                <option value="TOKEN_BUCKET">Token bucket</option>
               </select>
             </div>
             <div>
-              <label className="label">Target value</label>
-              <input className="field" name="targetValue" placeholder="e.g. 1.2.3.4" />
+              <label className="label" htmlFor="new-target">Target value</label>
+              <input id="new-target" className="field font-mono" name="targetValue" placeholder="e.g. 1.2.3.4" />
             </div>
             <div>
-              <label className="label">Endpoint pattern</label>
-              <input className="field" name="endpointPattern" placeholder="/api/products*" />
+              <label className="label" htmlFor="new-endpoint">Endpoint pattern</label>
+              <input id="new-endpoint" className="field font-mono" name="endpointPattern" placeholder="/api/products*" />
             </div>
             <div>
-              <label className="label">Method</label>
-              <select className="field" name="method" defaultValue="">
+              <label className="label" htmlFor="new-method">Method</label>
+              <select id="new-method" className="field" name="method" defaultValue="">
                 <option value="">Any method</option>
                 <option value="GET">GET</option>
                 <option value="POST">POST</option>
@@ -199,30 +244,33 @@ export default function RulesPage() {
               </select>
             </div>
             <div>
-              <label className="label">User tier</label>
-              <select className="field" name="userTier" defaultValue="">
+              <label className="label" htmlFor="new-tier">User tier</label>
+              <select id="new-tier" className="field" name="userTier" defaultValue="">
                 <option value="">Any tier</option>
-                <option value="FREE">FREE</option>
-                <option value="PRO">PRO</option>
-                <option value="BUSINESS">BUSINESS</option>
-                <option value="ENTERPRISE">ENTERPRISE</option>
+                <option value="FREE">Free</option>
+                <option value="PRO">Pro</option>
+                <option value="BUSINESS">Business</option>
+                <option value="ENTERPRISE">Enterprise</option>
               </select>
             </div>
             <div>
-              <label className="label">Limit</label>
-              <input className="field" name="limit" type="number" defaultValue="100" required />
+              <label className="label" htmlFor="new-limit">Limit</label>
+              <input id="new-limit" className="field" name="limit" type="number" defaultValue="100" required />
+              <p className="mt-1 text-2xs text-slate-500">Requests per window</p>
             </div>
             <div>
-              <label className="label">Window (s)</label>
-              <input className="field" name="windowSeconds" type="number" defaultValue="60" required />
+              <label className="label" htmlFor="new-window">Window</label>
+              <input id="new-window" className="field" name="windowSeconds" type="number" defaultValue="60" required />
+              <p className="mt-1 text-2xs text-slate-500">Seconds</p>
             </div>
             <div>
-              <label className="label">Burst capacity</label>
-              <input className="field" name="burstCapacity" type="number" placeholder="optional" />
+              <label className="label" htmlFor="new-burst">Burst capacity</label>
+              <input id="new-burst" className="field" name="burstCapacity" type="number" placeholder="optional" />
+              <p className="mt-1 text-2xs text-slate-500">Token bucket only</p>
             </div>
             <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4">
-              <label className="label">Description</label>
-              <input className="field" name="description" placeholder="Optional description" />
+              <label className="label" htmlFor="new-description">Description</label>
+              <input id="new-description" className="field" name="description" placeholder="What this rule protects, and why" />
             </div>
             <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3 xl:col-span-4">
               <button type="submit" className="btn-primary" disabled={pending}>
@@ -244,109 +292,170 @@ export default function RulesPage() {
         <LoadingState label="Loading rules…" />
       ) : list.length === 0 ? (
         <Panel>
-          <p className="py-6 text-center text-sm text-slate-500">
-            No rules yet. Create your first one above.
-          </p>
+          <div className="py-10 text-center">
+            <p className="text-sm font-medium text-slate-800">No rules yet</p>
+            <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+              Without a rule, every request through the gateway is allowed. Add
+              one to start enforcing a limit.
+            </p>
+            <button type="button" className="btn-primary mt-4" onClick={() => setShowForm(true)}>
+              Create the first rule
+            </button>
+          </div>
         </Panel>
       ) : (
-        <div className="grid gap-4">
-          {list.map((rule) => (
-            <Panel key={rule.id}>
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-base font-semibold text-slate-900">{rule.name}</h2>
-                    <span className="badge-brand">{rule.scope}</span>
-                    <span className="badge-neutral">{rule.algorithm}</span>
-                    <span className={rule.isActive ? 'badge-success' : 'badge-warning'}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${rule.isActive ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                      {rule.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm text-slate-600">{rule.description || 'No description.'}</p>
-                  <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">
-                    <div>
-                      <dt className="text-slate-500">Priority</dt>
-                      <dd className="font-medium text-slate-800">{rule.priority}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">Limit</dt>
-                      <dd className="font-medium text-slate-800">{rule.limit}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-slate-500">Window</dt>
-                      <dd className="font-medium text-slate-800">{rule.windowSeconds}s</dd>
-                    </div>
-                  </dl>
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  {/* Toggle */}
-                  <button
-                    type="button"
-                    onClick={() => handleToggle(rule)}
-                    disabled={togglingId === rule.id}
-                    className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-                      rule.isActive
-                        ? 'border-amber-200 bg-surface text-amber-600 hover:bg-amber-50'
-                        : 'border-emerald-200 bg-surface text-emerald-600 hover:bg-emerald-50'
-                    }`}
-                  >
-                    {togglingId === rule.id ? '…' : rule.isActive ? 'Disable' : 'Enable'}
-                  </button>
-                  {/* Edit */}
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => { setEditingRule(rule); setEditError(''); }}
-                  >
-                    Edit
-                  </button>
-                  {/* Delete */}
-                  <button
-                    type="button"
-                    className="rounded-lg border border-red-200 bg-surface px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition"
-                    onClick={() => remove(rule.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </Panel>
-          ))}
-        </div>
+        <Panel padding={false}>
+          {/* Precedence is the whole job of this screen, so it is stated where
+              the table is read, not buried in the page description. */}
+          <div className="border-b border-slate-200 px-4 py-3 text-xs text-slate-500 sm:px-5">
+            Scope decides first — IP, then API key, user tier, endpoint, global.
+            Within one scope the lowest priority number runs first.{' '}
+            <span className="text-slate-700">
+              {activeCount} of {list.length} {list.length === 1 ? 'rule is' : 'rules are'} active.
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="tbl min-w-[54rem]">
+              <thead>
+                <tr>
+                  <th scope="col" className="w-12 !text-right">#</th>
+                  <th scope="col">Rule</th>
+                  <th scope="col">Scope</th>
+                  <th scope="col">Algorithm</th>
+                  <th scope="col" className="!text-right">Limit</th>
+                  <th scope="col" className="!text-right">Window</th>
+                  <th scope="col">Status</th>
+                  <th scope="col"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {ordered.map((rule, index) => {
+                  const position = rule.isActive ? index + 1 : null;
+                  return (
+                    <tr key={rule.id} className={rule.isActive ? undefined : 'opacity-60'}>
+                      <td className="!text-right">
+                        <span
+                          className="num text-xs font-semibold text-slate-500"
+                          title={
+                            position
+                              ? `Evaluated ${position} of ${activeCount}`
+                              : 'Inactive rules are skipped entirely'
+                          }
+                        >
+                          {position ?? '—'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="min-w-0">
+                          <p className="font-medium text-slate-900">{rule.name}</p>
+                          {rule.description ? (
+                            <p className="mt-0.5 max-w-md truncate text-xs text-slate-500">
+                              {rule.description}
+                            </p>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="text-slate-700">{scopeLabel(rule.scope)}</span>
+                        {rule.targetValue || rule.endpointPattern ? (
+                          <p className="mt-0.5 max-w-[14rem] truncate font-mono text-2xs text-slate-500">
+                            {rule.targetValue ?? rule.endpointPattern}
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="text-slate-600">{algorithmLabel(rule.algorithm)}</td>
+                      <td className="!text-right">
+                        <span className="num font-mono text-slate-800">
+                          {formatCount(rule.limit)}
+                        </span>
+                      </td>
+                      <td className="!text-right">
+                        <span
+                          className="num font-mono text-slate-800"
+                          title={`${rule.windowSeconds} seconds`}
+                        >
+                          {formatDuration(rule.windowSeconds)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={rule.isActive ? 'badge-success' : 'badge-warning'}>
+                          {rule.isActive ? 'Active' : 'Paused'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleToggle(rule)}
+                            disabled={togglingId === rule.id}
+                            className="btn-ghost btn-sm"
+                          >
+                            {togglingId === rule.id
+                              ? '…'
+                              : rule.isActive
+                                ? 'Pause'
+                                : 'Resume'}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-sm"
+                            onClick={() => { setEditingRule(rule); setEditError(''); }}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-ghost btn-sm !text-slate-500 hover:!text-red-700"
+                            onClick={() => setDeletingRule(rule)}
+                            aria-label={`Delete ${rule.name}`}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       )}
 
-      {/* Edit Modal */}
+      {/* Edit */}
       {editingRule && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
-          <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-xl">
-            <h2 className="text-lg font-semibold text-slate-900">Edit Rule</h2>
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-raised p-6 shadow-overlay">
+            <h2 className="text-lg font-semibold text-slate-900">Edit rule</h2>
+            <p className="mt-1 text-sm text-slate-500">{editingRule.name}</p>
             <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={handleEdit}>
               <div className="sm:col-span-2">
-                <label className="label">Name</label>
-                <input className="field" name="name" defaultValue={editingRule.name} required />
+                <label className="label" htmlFor="edit-rule-name">Name</label>
+                <input id="edit-rule-name" className="field" name="name" defaultValue={editingRule.name} required />
               </div>
               <div>
-                <label className="label">Priority</label>
-                <input className="field" name="priority" type="number" defaultValue={editingRule.priority} required />
+                <label className="label" htmlFor="edit-rule-priority">Priority</label>
+                <input id="edit-rule-priority" className="field" name="priority" type="number" defaultValue={editingRule.priority} required />
+                <p className="mt-1 text-2xs text-slate-500">Lower runs first</p>
               </div>
               <div>
-                <label className="label">Limit</label>
-                <input className="field" name="limit" type="number" defaultValue={editingRule.limit} required />
+                <label className="label" htmlFor="edit-rule-limit">Limit</label>
+                <input id="edit-rule-limit" className="field" name="limit" type="number" defaultValue={editingRule.limit} required />
               </div>
               <div>
-                <label className="label">Window (s)</label>
-                <input className="field" name="windowSeconds" type="number" defaultValue={editingRule.windowSeconds} required />
+                <label className="label" htmlFor="edit-rule-window">Window (seconds)</label>
+                <input id="edit-rule-window" className="field" name="windowSeconds" type="number" defaultValue={editingRule.windowSeconds} required />
               </div>
               <div>
-                <label className="label">Burst capacity</label>
-                <input className="field" name="burstCapacity" type="number" defaultValue={editingRule.burstCapacity ?? ''} placeholder="optional" />
+                <label className="label" htmlFor="edit-rule-burst">Burst capacity</label>
+                <input id="edit-rule-burst" className="field" name="burstCapacity" type="number" defaultValue={editingRule.burstCapacity ?? ''} placeholder="optional" />
               </div>
               <div className="sm:col-span-2">
-                <label className="label">Description</label>
-                <input className="field" name="description" defaultValue={editingRule.description ?? ''} placeholder="Optional" />
+                <label className="label" htmlFor="edit-rule-description">Description</label>
+                <input id="edit-rule-description" className="field" name="description" defaultValue={editingRule.description ?? ''} placeholder="What this rule protects, and why" />
               </div>
-              {editError && <p className="sm:col-span-2 text-sm text-red-600">{editError}</p>}
+              {editError && <p className="text-sm text-red-700 sm:col-span-2">{editError}</p>}
               <div className="flex gap-2 sm:col-span-2">
                 <button type="submit" className="btn-primary" disabled={editPending}>
                   {editPending ? 'Saving…' : 'Save changes'}
@@ -356,6 +465,40 @@ export default function RulesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete — a rule used to vanish on a single click with no way back. */}
+      {deletingRule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
+          <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-raised p-6 shadow-overlay">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Delete “{deletingRule.name}”?
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Traffic matching {scopeLabel(deletingRule.scope).toLowerCase()} will
+              fall through to the next rule that matches, or be allowed if none
+              does. This cannot be undone.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                className="btn-danger-solid"
+                onClick={confirmDelete}
+                disabled={deletePending}
+              >
+                {deletePending ? 'Deleting…' : 'Delete rule'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setDeletingRule(null)}
+                disabled={deletePending}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
