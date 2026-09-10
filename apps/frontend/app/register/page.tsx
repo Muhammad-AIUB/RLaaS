@@ -136,7 +136,8 @@ export default function RegisterPage() {
 
             {slowWarning && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                ⏳ Server is waking up — this usually takes 10–20 seconds on first load. Please wait…
+                The demo backend sleeps when idle and takes 10–20 seconds to
+                wake. Still working.
               </div>
             )}
 

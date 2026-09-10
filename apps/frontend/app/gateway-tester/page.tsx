@@ -152,14 +152,14 @@ export default function GatewayTesterPage() {
 
   return (
     <main className="min-h-screen bg-canvas">
-      {/* Top banner */}
-      <div className="border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-sm">
-        <span className="text-amber-800">🧪 Live Demo — no login required.</span>{' '}
-        <Link
-          href="/login"
-          className="font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-700"
-        >
-          Sign in to use RLaaS for real →
+      {/* Amber means "degraded" everywhere else in the console, so an amber
+          notice bar spends a semantic color on an announcement. */}
+      <div className="border-b border-slate-200 bg-surface px-4 py-2.5 text-center text-xs">
+        <span className="text-slate-600">
+          Live gateway, no account needed. Requests hit the real limiter.
+        </span>{' '}
+        <Link href="/login" className="link ml-1">
+          Sign in to the console
         </Link>
       </div>
 
@@ -173,7 +173,7 @@ export default function GatewayTesterPage() {
           Gateway Tester
         </h1>
         <p className="mt-2 max-w-xl text-slate-500">
-          Click <strong className="text-slate-700">Send Request</strong> and watch RLaaS
+          Press <strong className="text-slate-700">Send request</strong> and watch RLaaS
           enforce rate limits in real time. Each algorithm gets its own counter:{' '}
           <strong className="text-slate-700">5 requests per 10 seconds</strong>.
         </p>
@@ -254,7 +254,7 @@ export default function GatewayTesterPage() {
               <div className="mt-1.5 text-xs text-slate-400">
                 {countdown > 0 ? (
                   <span>
-                    ⏱ Window resets in{' '}
+                    Window resets in{' '}
                     <strong className="text-slate-600">{countdown}s</strong>
                   </span>
                 ) : (
@@ -277,20 +277,20 @@ export default function GatewayTesterPage() {
                 disabled={pending}
                 className="btn-primary w-full py-3 text-base disabled:opacity-60"
               >
-                {pending ? 'Sending…' : '→ Send Request'}
+                {pending ? 'Sending…' : 'Send request'}
               </button>
               <button
                 onClick={handleBurst}
                 disabled={pending}
                 className="w-full rounded-lg border border-slate-200 bg-surface px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
-                ⚡ Send 10 Rapid Requests
+                Send 10 in a burst
               </button>
               <button
                 onClick={handleReset}
                 className="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600"
               >
-                ↺ Reset (new session)
+                Start a new session
               </button>
             </div>
           </div>
@@ -305,7 +305,7 @@ export default function GatewayTesterPage() {
                 <p className="text-sm text-slate-400">
                   No requests yet.
                   <br />
-                  Hit <strong>Send Request</strong> to start.
+                  Press <strong>Send request</strong> to start.
                 </p>
               </div>
             ) : (
@@ -341,35 +341,27 @@ export default function GatewayTesterPage() {
           </div>
         </div>
 
-        {/* Info section */}
-        <div className="mt-12">
-          <h2 className="mb-5 text-xl font-semibold text-slate-900">
-            How rate limiting works
+        {/* Three equal cards for three unequal paragraphs is the shape every
+            generated page reaches for. This is prose. */}
+        <section className="mt-12 max-w-2xl">
+          <h2 className="text-xl font-semibold text-slate-900">
+            What is actually happening
           </h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="card p-5">
-              <p className="font-semibold text-slate-900">What is rate limiting?</p>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                Rate limiting caps how many requests a client can make in a time
-                window — protecting APIs from abuse, scraping, and traffic spikes.
-              </p>
-            </div>
-            <div className="card p-5">
-              <p className="font-semibold text-slate-900">Redis-backed counters</p>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                Every click runs a real Lua script on Upstash Redis atomically.
-                No race conditions, no false positives — production-grade enforcement.
-              </p>
-            </div>
-            <div className="card p-5">
-              <p className="font-semibold text-slate-900">Isolated per visitor</p>
-              <p className="mt-2 text-sm leading-relaxed text-slate-500">
-                Each browser session gets a unique ID prefixed <code className="text-xs bg-slate-100 px-1 rounded">demo:</code>.
-                Your clicks never affect real project data.
-              </p>
-            </div>
-          </div>
-        </div>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            Rate limiting caps how many requests a client can make in a window,
+            which is what keeps an API standing up under scraping, abuse, and
+            traffic spikes. Every press above runs a real Lua script on Redis
+            atomically — no race conditions and no approximation, the same path
+            production traffic takes.
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            Your browser session gets its own identifier prefixed{' '}
+            <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-700">
+              demo:
+            </code>
+            , so nothing you do here touches a real project&rsquo;s counters.
+          </p>
+        </section>
 
         {/* Algorithm breakdown */}
         <div className="mt-6 card p-6">

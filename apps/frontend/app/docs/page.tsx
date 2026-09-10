@@ -71,7 +71,7 @@ export default function DocsPage() {
           className="mb-6 flex items-center justify-between rounded-xl border-2 border-brand-200 bg-brand-50 px-5 py-4 transition-colors hover:border-brand-300 hover:bg-brand-100"
         >
           <div>
-            <p className="font-semibold text-brand-800">🧪 Live Gateway Tester — no login required</p>
+            <p className="font-semibold text-brand-800">Live gateway tester — no login required</p>
             <p className="mt-0.5 text-sm text-brand-600">
               Click &ldquo;Send Request&rdquo; and watch rate limiting enforce in real time. Try all 4 algorithms.
             </p>
