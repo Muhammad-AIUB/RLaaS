@@ -31,9 +31,48 @@ function hashApiKey(value) {
   return createHmac('sha256', pepper).update(value).digest('hex');
 }
 
+/**
+ * Values that were committed to this PUBLIC repository and are permanently
+ * readable in git history (render.yaml and the README, 2026-05-07 to
+ * 2026-08-27, removed in 487449f).
+ *
+ * This function is the only path that writes them into a database, so this is
+ * where refusing matters. Warning would not be enough: the whole finding was
+ * that a deploy silently re-created an account whose password anyone can look
+ * up. It hard-fails instead.
+ *
+ * The list is closed — these are facts about the past, not a growing denylist.
+ * src/config/env.validation.ts carries the same two strings for its boot-time
+ * warning; keep them in step.
+ */
+const BURNED = new Set([
+  'DemoPass123!',
+  'rlaas_live_demo_seed_key_1234567890',
+]);
+
+function refuseBurned(name, value) {
+  if (value && BURNED.has(value)) {
+    throw new Error(
+      [
+        `Refusing to seed: ${name} is set to a value that is public.`,
+        '',
+        'It was committed to this repository and is readable by anyone who',
+        'clones it. Seeding with it would recreate an account whose',
+        'credentials are already published.',
+        '',
+        'Generate a new one:  openssl rand -base64 24',
+        'Or unset it — the seed skips that step cleanly when it is absent.',
+      ].join('\n'),
+    );
+  }
+}
+
 async function main() {
   const email = process.env.SEED_DEMO_EMAIL;
   const password = process.env.SEED_DEMO_PASSWORD;
+
+  refuseBurned('SEED_DEMO_PASSWORD', password);
+  refuseBurned('SEED_RAW_API_KEY', process.env.SEED_RAW_API_KEY);
 
   if (!email || !password) {
     console.log('Seed skipped: SEED_DEMO_EMAIL and SEED_DEMO_PASSWORD not set.');
