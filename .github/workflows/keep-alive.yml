@@ -1,22 +1,63 @@
-name: Keep Render Alive
+name: Warm Render
+
+# WHAT THIS CAN AND CANNOT DO
+#
+# Render stops a free instance after 15 minutes without traffic, and the next
+# visitor waits for it to boot. This workflow pings it so that window keeps
+# resetting.
+#
+# GitHub's scheduler cannot actually hold that window, and this repository has
+# the receipts. The schedule below asks for every 10 minutes. In practice the
+# runs landed 1 to 3 HOURS apart, and then stopped firing altogether for 42
+# days while the workflow still showed as "active" — a manual dispatch worked
+# fine the whole time, so nothing was broken, the cron simply was not run.
+# GitHub documents `schedule` as best effort and drops it under load.
+#
+# So treat this as two things:
+#
+#   1. A manual pre-warm. Actions -> Warm Render -> Run workflow, about a
+#      minute before a demo or an interview. This part is reliable.
+#   2. A best-effort background ping. Better than nothing, not a guarantee.
+#
+# If the instance must never be cold, either move off the free plan (paid
+# compute does not spin down at all) or point an external uptime pinger at
+# /api/v1/health on a 10-14 minute interval. An external pinger is a scheduler
+# whose one job is firing on time, which is not true of CI cron.
+#
+# Note the free plan includes 750 instance-hours per month and a month is ~730,
+# so a successful 24/7 keep-alive consumes essentially the whole allowance.
 
 on:
   schedule:
-    - cron: '*/10 * * * *'   # every 10 minutes
-  workflow_dispatch:           # manual trigger
+    - cron: '*/10 * * * *'   # best effort — see above, expect drift and gaps
+  workflow_dispatch:           # the reliable path
 
-# This job only curls a public health endpoint. It needs no repository access
-# at all, so it is given none.
+# Pings a public endpoint. Needs no access to the repository.
 permissions: {}
 
 jobs:
-  ping:
+  warm:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping backend health
+      - name: Wake the instance and warm Redis
+        id: health
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://rlaas.onrender.com/api/v1/health)
-          echo "Health check status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
-            echo "Warning: Backend returned $STATUS"
-          fi
+          CODE=$(curl -s -o /dev/null -m 180 -w "%{http_code}" \
+            --retry 3 --retry-connrefused --retry-delay 10 \
+            -w "%{http_code} %{time_starttransfer}" \
+            https://rlaas.onrender.com/api/v1/health)
+          echo "health: $CODE"
+          echo "$CODE" | grep -q '^200' || echo "::warning::health did not answer 200 ($CODE)"
+
+      - name: Warm the Postgres connection too
+        run: |
+          # /health only pings Redis, so an instance warmed by that step alone
+          # still pays Prisma connect + Neon round trip on the first real
+          # request. A gateway check with a key that does not exist runs
+          # findByRawKey: Redis miss, then a Postgres lookup that returns null.
+          # Read-only — request logs are only written for a valid key.
+          CODE=$(curl -s -o /dev/null -m 180 -w "%{http_code} %{time_starttransfer}" \
+            -X POST https://rlaas.onrender.com/api/v1/gateway/check \
+            -H 'Content-Type: application/json' \
+            -d '{"apiKey":"rlaas_live_warmup_not_a_real_key","ip":"203.0.113.1","endpoint":"/warmup","method":"GET","userTier":"free"}')
+          echo "gateway: $CODE"

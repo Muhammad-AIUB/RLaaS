@@ -5,7 +5,18 @@ services:
     region: singapore
     plan: free
     rootDir: apps/backend
-    buildCommand: npm i -g pnpm && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build
+    # `prisma migrate deploy` moved here from startCommand.
+    #
+    # buildCommand runs once per deploy, on a build machine. startCommand runs
+    # on every container start — and on the free plan the instance is stopped
+    # after 15 minutes without traffic, so "every container start" means every
+    # time somebody visits after a quiet spell. Migrations that were already
+    # applied were being re-checked on each of those wake-ups, and the check is
+    # not cheap: it boots the Prisma CLI, loads the query engine binary and
+    # opens a connection to Neon before Nest gets to start at all. Measured
+    # locally, `prisma migrate status` alone takes ~24s; the build machine has
+    # a real CPU, the 0.1 vCPU instance does not.
+    buildCommand: npm i -g pnpm && pnpm install --frozen-lockfile && pnpm prisma generate && pnpm build && pnpm prisma migrate deploy
     # `prisma db seed` used to run here, on every single deploy. seed.js upserts
     # the demo user with `update: { passwordHash }` and upserts the demo API key
     # from SEED_DEMO_PASSWORD / SEED_RAW_API_KEY — and both of those values were
@@ -16,7 +27,10 @@ services:
     # Seeding is a provisioning step, not a boot step. Run it by hand against a
     # fresh database, with values that were never committed:
     #   pnpm --filter @rlaas/backend db:seed
-    startCommand: pnpm prisma migrate deploy && node dist/main
+    # Nothing but the server. Every second spent here is a second the first
+    # visitor after a spin-down waits, and neither migrating nor seeding is
+    # work that belongs on a container start.
+    startCommand: node dist/main
     healthCheckPath: /api/v1/health
     envVars:
       - key: NODE_ENV
