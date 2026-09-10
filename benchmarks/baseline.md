@@ -31,6 +31,7 @@ across runs from a different location, or re-run from the same machine.
 | 0a | 2026-05-09 | pre-`3f088ab` | (historical, found in `tests/results/`) | not measured | 1119ms | 1846ms | 1905ms | 23.6 req/s | not measured | 65 VUs, 65s, ramping |
 | 0b | 2026-08-27 | `3f088ab` | baseline probe, no load | **92,689ms** | 178ms | not measured | not measured | not measured | not measured | 1 cold + 10 warm, serial |
 | 1 | 2026-08-27 | `3f088ab` | **BASELINE** stepped load, deployed | not measured (warmed first) | 2402ms @100VU | 3018ms @100VU | 3422ms @100VU | 38.0 req/s | not measured | 10→25→50→100 VU, 60s each |
+| 2 | 2026-09-10 | `7d2b0a5` | auth-path probe (no load) — see [Run 2](#run-2--auth-path-probe-2026-09-10-commit-7d2b0a5) | not measured (already warm) | not measured | not measured | not measured | not measured | not measured | serial single client |
 
 Run 0b is a probe. **Run 1 is the load baseline** every optimization compares against.
 
@@ -133,6 +134,83 @@ here so a future optimization is not judged on a shifting allow/block mix.
 38.0 req/s sustained across the whole run — up from run 0a's 23.6 req/s, but 0a
 capped at 65 VUs and used a ramping profile, so the two are not directly
 comparable. Treat 38 req/s as the run-1 baseline.
+
+---
+
+## Run 2 — auth-path probe (2026-09-10, commit `7d2b0a5`)
+
+Serial single-client probes against the deployed instance, already warm. No
+concurrency, so nothing here is comparable to run 1's load numbers. The
+question was where time goes on the auth path, not throughput.
+
+### Login, split by whether a password hash runs
+
+`POST /api/v1/auth/login`. An address with no account returns 401 before
+`bcrypt.compare` is reached; an address with an account runs it. The gap is the
+hash.
+
+| request | n | observed |
+|---|---|---|
+| unknown email (no hash runs) | 3 | 237ms, 283ms, 378ms |
+| real account, wrong password (hash runs) | 3 | 2409ms, 2434ms, 2760ms |
+| `POST /auth/register` (hash runs) | 1 | 2374ms |
+
+**~2.1s of that is one bcrypt hash at cost 12** on a 0.1 vCPU instance. Local
+reference for the same library on an i7-8665U: cost 8 = 22ms, cost 10 = 91ms,
+cost 12 = 402ms — so this instance is ~5.4x slower than that core for identical
+work.
+
+### One hash slows down requests that have nothing to do with auth
+
+`bcryptjs` is pure JavaScript, so the work lands on the thread that serves
+every other request. Eight parallel `GET /api/v1/health` (Redis ping only, no
+Postgres), before and during a single `POST /auth/register`:
+
+| | p50 | max |
+|---|---|---|
+| baseline | 234ms | 355ms |
+| during one hash | 727ms | 1122ms |
+
+**3.1x.** n=1 for the during-run, so treat it as an order of magnitude.
+
+### Where a gateway request actually spends its time
+
+`POST /api/v1/gateway/check` with a key that does not exist, so the handler
+returns after `findByRawKey` (Redis GET miss, then one Postgres lookup). The
+deployed build now emits `Server-Timing`, which run 1 could not read.
+
+| n | server (`total;dur`) | client TTFB | TCP connect | TLS |
+|---|---|---|---|---|
+| 6 | 68.7-71.9ms | 217-399ms | 12-31ms | 30-52ms |
+
+**~69ms server, ~150-215ms transit.** The client sits in Bangladesh and the
+origin is `singapore`, so most of a request's wall clock is geography, not the
+handler. Server-side numbers from this section are directly comparable across
+runs; client-side ones are not, unless re-run from the same location.
+
+### Cold start
+
+Not measured in this run — the instance was warm throughout and re-measuring
+costs a 15-minute idle window. Run 0b's **92,689ms** stands as the last
+measured value, taken when `startCommand` was
+`prisma migrate deploy && prisma db seed && node dist/main`. Both the seed
+(`152dc31`) and the migration (`8b9ca64`) have since been removed from the
+start path, so that figure is now an upper bound rather than a current
+reading. **Re-measure before quoting it.**
+
+### Environment notes gathered while probing
+
+- Render free plan stops the instance after 15 minutes without traffic
+  ([docs](https://render.com/docs/free)). Paid compute plans do not stop.
+- The `Keep Render Alive` workflow asks for every 10 minutes. Its run history
+  shows runs landing 1-3 hours apart, then nothing at all for 42 days while the
+  workflow still showed as active; a manual dispatch worked throughout. It has
+  never held the 15-minute window.
+- `GET /health` pings Redis only ([health.service.ts](../apps/backend/src/health/health.service.ts)),
+  so warming it does not warm Postgres.
+- `PrismaService.onModuleInit` calls `$connect()`, so the pool is opened at
+  boot rather than on the first request.
+- Neon, from a client in Bangladesh: first query 580ms, then 56ms steady.
 
 ---
 
