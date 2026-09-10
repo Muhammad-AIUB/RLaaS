@@ -78,8 +78,23 @@ export class ApiKeysService {
     });
 
     await this.bustApiKeyListCache(projectId);
+
+    // Same column list the list endpoint uses, for the same reason: `hashedKey`
+    // is the stored credential digest. Spreading the created row here put it in
+    // the create response, so the one endpoint that had to be careful with it
+    // was the one that handed it to the browser.
     return {
-      ...apiKey,
+      id: apiKey.id,
+      projectId: apiKey.projectId,
+      name: apiKey.name,
+      keyPrefix: apiKey.keyPrefix,
+      hashVersion: apiKey.hashVersion,
+      status: apiKey.status,
+      lastUsedAt: apiKey.lastUsedAt,
+      expiresAt: apiKey.expiresAt,
+      createdAt: apiKey.createdAt,
+      updatedAt: apiKey.updatedAt,
+      // Returned exactly once. It is not recoverable after this response.
       key: plainKey,
     };
   }

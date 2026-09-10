@@ -33,7 +33,7 @@ describe('/api/v1/projects/:projectId/api-keys', () => {
   const base = `/api/v1/projects/${PROJECT_ID}/api-keys`;
 
   const asUser = (token: string) => ({
-    post: (path: string, body?: unknown) =>
+    post: (path: string, body?: object) =>
       request(ctx.app.getHttpServer())
         .post(path)
         .set('Authorization', `Bearer ${token}`)
@@ -42,7 +42,7 @@ describe('/api/v1/projects/:projectId/api-keys', () => {
       request(ctx.app.getHttpServer())
         .get(path)
         .set('Authorization', `Bearer ${token}`),
-    patch: (path: string, body?: unknown) =>
+    patch: (path: string, body?: object) =>
       request(ctx.app.getHttpServer())
         .patch(path)
         .set('Authorization', `Bearer ${token}`)
@@ -86,10 +86,11 @@ describe('/api/v1/projects/:projectId/api-keys', () => {
         lastUsedAt: null,
       });
 
-      // KNOWN-ODD: the create response also carries `hashedKey`, the stored
-      // credential digest. Nothing in the client needs it, and it is the value
-      // an attacker would want in order to forge a cache entry.
-      expect(response.body.hashedKey).toBe(hashApiKey(response.body.key));
+      // WAS KNOWN-ODD, NOW FIXED: the create response also carried
+      // `hashedKey`, the stored credential digest — the value an attacker
+      // would want in order to forge a cache entry. The list endpoint already
+      // excluded it; only the endpoint that handed it to the browser did not.
+      expect(response.body).not.toHaveProperty('hashedKey');
     });
 
     it('refuses a VIEWER with 403', async () => {
