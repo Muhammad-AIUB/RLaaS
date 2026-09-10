@@ -93,7 +93,7 @@ export class RateLimiterService {
         request: proxyDto,
       })) ?? this.buildDefaultRule();
 
-    const key = this.buildRateLimitKey(proxyDto, rule, projectId);
+    const key = this.buildRateLimitKey(proxyDto, rule, projectId, apiKey.id);
 
     const result = await this.algorithmRegistryService.get(rule.algorithm).consume({
       key,
@@ -189,6 +189,7 @@ export class RateLimiterService {
       { ...dto, method: normalizedMethod, userTier: normalizedTier },
       rule,
       apiKey.projectId,
+      apiKey.id,
     );
 
     const result = await measure('redis', () =>
@@ -249,31 +250,61 @@ export class RateLimiterService {
     return response;
   }
 
+  /**
+   * The counter identity is (project, rule, scope value) and nothing else.
+   *
+   * This used to append the request's method, endpoint and userTier to EVERY
+   * key regardless of scope. All three are chosen by the caller, so a rule
+   * declaring "GLOBAL, 5 per 300s" actually issued a fresh budget of 5 for
+   * each (method, endpoint, tier) tuple that was sent: measured against a live
+   * server, one such rule allowed 18 of 19 requests. Anyone holding a valid
+   * key evaded their limit by varying the path, and each variation left a
+   * permanent counter behind, so an attacker also controlled Redis key growth.
+   *
+   * A rule limits what it matches. Two requests that match the same rule with
+   * the same scope value share one budget — that is what declaring a limit
+   * means. Constraints the rule itself carries (method, userTier, endpoint
+   * pattern) are already applied by RulesService#findMatchingRule, so a
+   * request that reaches here has passed them and belongs in the same bucket.
+   *
+   * `algorithm` stays in the key because each one stores a different Redis
+   * type (a string for fixed window, a hash for token bucket). Without it,
+   * editing a rule's algorithm would hit the old key and fail with WRONGTYPE.
+   */
   private buildRateLimitKey(
-    dto: Pick<GatewayCheckDto, 'ip' | 'apiKey' | 'endpoint' | 'method' | 'userTier'>,
+    dto: Pick<GatewayCheckDto, 'ip' | 'endpoint' | 'method' | 'userTier'>,
     rule: ResolvedRateLimitRule,
     projectId: string,
+    apiKeyId: string,
   ): string {
-    const scopeValue = this.buildScopeValue(dto, rule);
-
     return [
       'rlaas',
       projectId,
       rule.algorithm,
       rule.scope,
-      scopeValue,
-      dto.method.toUpperCase(),
-      dto.endpoint,
-      dto.userTier.toLowerCase(),
+      this.buildScopeValue(dto, rule, apiKeyId),
+      rule.id ?? 'default',
     ].join(':');
   }
 
-  private buildScopeValue(dto: GatewayCheckDto, rule: ResolvedRateLimitRule) {
+  /**
+   * The API_KEY scope keys on the key's id, never on the raw key.
+   *
+   * Redis key names are not secret: they show up in KEYS/SCAN, MONITOR,
+   * SLOWLOG, RDB dumps and any metrics exporter that labels by key. Putting
+   * the customer's live credential there undid the point of storing only its
+   * HMAC in Postgres.
+   */
+  private buildScopeValue(
+    dto: Pick<GatewayCheckDto, 'ip' | 'endpoint' | 'method' | 'userTier'>,
+    rule: ResolvedRateLimitRule,
+    apiKeyId: string,
+  ) {
     switch (rule.scope) {
       case 'IP':
         return dto.ip;
       case 'API_KEY':
-        return dto.apiKey;
+        return apiKeyId;
       case 'USER_TIER':
         return dto.userTier.toLowerCase();
       case 'ENDPOINT':

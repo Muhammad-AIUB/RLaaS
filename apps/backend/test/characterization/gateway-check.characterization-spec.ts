@@ -171,9 +171,7 @@ describe('POST /api/v1/gateway/check', () => {
         algorithm: 'fixed_window',
         scope: 'GLOBAL',
         scopeValue: 'global',
-        method: 'GET',
-        endpoint: '/api/products',
-        userTier: 'free',
+        ruleId: '33333333-3333-4333-8333-333333333333',
       });
 
       expect(await ctx.redis.get(key)).toBe('1');
@@ -192,9 +190,7 @@ describe('POST /api/v1/gateway/check', () => {
         algorithm: 'fixed_window',
         scope: 'GLOBAL',
         scopeValue: 'global',
-        method: 'GET',
-        endpoint: '/api/products',
-        userTier: 'free',
+        ruleId: '33333333-3333-4333-8333-333333333333',
       });
 
       await post(validRequest());
@@ -227,7 +223,12 @@ describe('POST /api/v1/gateway/check', () => {
   });
 
   describe('rule scoping', () => {
-    it('gives every endpoint its own bucket even for a GLOBAL rule', async () => {
+    // WAS KNOWN-ODD, NOW FIXED: a GLOBAL rule used to compose its key from
+    // method + endpoint + tier, so "1 request per minute, globally" was really
+    // 1 per minute per endpoint per method per tier — and all three are picked
+    // by the caller. See the scope-dilution regressions in
+    // production-hardening.characterization-spec.ts.
+    it('spends one GLOBAL budget across every endpoint', async () => {
       seedApiKey();
       seedRule({ limit: 1 });
 
@@ -237,14 +238,10 @@ describe('POST /api/v1/gateway/check', () => {
 
       expect(onProducts.body.allowed).toBe(true);
       expect(alsoProducts.body.allowed).toBe(false);
-
-      // KNOWN-ODD: scope GLOBAL still composes the key from method + endpoint
-      // + tier, so "1 request per minute, globally" is really 1 per minute per
-      // endpoint per method per tier.
-      expect(onOrders.body.allowed).toBe(true);
+      expect(onOrders.body.allowed).toBe(false);
     });
 
-    it('gives every caller-declared tier its own bucket', async () => {
+    it('spends one GLOBAL budget across every caller-declared tier', async () => {
       seedApiKey();
       seedRule({ limit: 1 });
 
@@ -255,10 +252,10 @@ describe('POST /api/v1/gateway/check', () => {
       expect(asFree.body.allowed).toBe(true);
       expect(asFreeAgain.body.allowed).toBe(false);
 
-      // KNOWN-ODD: `userTier` is read straight from the request body, so the
-      // caller can pick its own bucket (and, with a USER_TIER rule, its own
-      // limit) simply by changing one field.
-      expect(asEnterprise.body.allowed).toBe(true);
+      // The caller can still name any tier it likes, but under a GLOBAL rule
+      // that no longer buys it a fresh bucket. Picking its own LIMIT via a
+      // USER_TIER rule remains possible by design: the tier is client-declared.
+      expect(asEnterprise.body.allowed).toBe(false);
     });
   });
 
@@ -324,9 +321,7 @@ describe('POST /api/v1/gateway/check', () => {
         algorithm: 'fixed_window',
         scope: 'GLOBAL',
         scopeValue: 'global',
-        method: 'GET',
-        endpoint: '/api/products',
-        userTier: 'free',
+        ruleId: '33333333-3333-4333-8333-333333333333',
       });
 
       const created = await post(validRequest({ idempotencyKey: 'idem-001' }));

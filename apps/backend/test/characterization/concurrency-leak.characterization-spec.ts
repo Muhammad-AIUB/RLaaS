@@ -25,6 +25,7 @@ import {
 
 const PROJECT_ID = 'c0c0c0c0-c0c0-4c0c-8c0c-c0c0c0c0c0c0';
 const API_KEY_ID = 'c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1';
+const RULE_ID = 'c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2';
 const RAW_KEY = 'rlaas_live_concurrency_probe';
 
 const LIMIT = 10;
@@ -55,7 +56,7 @@ describe('limit leakage under concurrency', () => {
 
   const seedRule = (algorithm: RuleAlgorithm) => {
     ctx.prisma.rules.push({
-      id: 'c2c2c2c2-c2c2-4c2c-8c2c-c2c2c2c2c2c2',
+      id: RULE_ID,
       projectId: PROJECT_ID,
       name: `Ten per minute (${algorithm})`,
       description: null,
@@ -225,9 +226,10 @@ describe('limit leakage under concurrency', () => {
       expect(blocked).toHaveLength(BURST - LIMIT);
 
       // No decision is lost or double-counted: the Redis counter saw all 100.
+      // One counter per rule: the key no longer carries the request's method,
+      // endpoint or tier (see the scope-dilution regressions).
       const key = [
-        'rlaas', PROJECT_ID, 'fixed_window', 'GLOBAL', 'global',
-        'GET', '/api/products', 'free',
+        'rlaas', PROJECT_ID, 'fixed_window', 'GLOBAL', 'global', RULE_ID,
       ].join(':');
       expect(await ctx.redis.get(key)).toBe(String(BURST));
 
@@ -370,9 +372,10 @@ describe('limit leakage under concurrency', () => {
         ),
       );
 
+      // One counter per rule: the key no longer carries the request's method,
+      // endpoint or tier (see the scope-dilution regressions).
       const key = [
-        'rlaas', PROJECT_ID, 'fixed_window', 'GLOBAL', 'global',
-        'GET', '/api/idempotent', 'free',
+        'rlaas', PROJECT_ID, 'fixed_window', 'GLOBAL', 'global', RULE_ID,
       ].join(':');
       const consumed = Number(await ctx.redis.get(key));
 

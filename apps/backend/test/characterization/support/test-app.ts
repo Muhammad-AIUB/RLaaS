@@ -111,15 +111,19 @@ export function sleep(ms: number): Promise<void> {
 /**
  * Rebuilds the Redis key the limiter uses, so tests can inspect the real
  * counter and its real TTL. Mirrors RateLimiterService#buildRateLimitKey.
+ *
+ * The key no longer carries the request's method, endpoint or userTier. It
+ * used to, which meant a rule's declared limit was silently multiplied by the
+ * number of request shapes a caller chose to send — see the scope-dilution
+ * tests in production-hardening.characterization-spec.ts. The counter is now
+ * identified by the rule that produced it.
  */
 export function rateLimitKey(parts: {
   projectId: string;
   algorithm: string;
   scope: string;
   scopeValue: string;
-  method: string;
-  endpoint: string;
-  userTier: string;
+  ruleId?: string;
 }): string {
   return [
     'rlaas',
@@ -127,8 +131,6 @@ export function rateLimitKey(parts: {
     parts.algorithm,
     parts.scope,
     parts.scopeValue,
-    parts.method.toUpperCase(),
-    parts.endpoint,
-    parts.userTier.toLowerCase(),
+    parts.ruleId ?? 'default',
   ].join(':');
 }
