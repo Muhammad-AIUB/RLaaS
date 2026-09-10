@@ -1,5 +1,6 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { RequestMeta } from '../common/decorators/request-metadata.decorator';
 import type { RequestMetadata } from '../common/interfaces/request-metadata.interface';
 import { AuthThrottlerGuard } from './guards/auth-throttler.guard';
@@ -21,7 +22,30 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  /**
+   * Tighter than the other auth routes, because this one is an email oracle
+   * and cannot stop being one.
+   *
+   * A 409 tells the caller the address is taken. Hiding that would mean
+   * returning the same response for a new and an existing address — but
+   * register signs the caller in and returns an access token, so a uniform
+   * response is impossible unless nobody gets a token, which means every
+   * signup has to go through email verification. There is no email transport
+   * in this codebase, so that is a real feature, not a patch. Faking success
+   * without it would tell a genuine user their account exists when it does
+   * not, and they would then be unable to sign in.
+   *
+   * So the oracle stays and is made expensive instead: 10 per hour per IP
+   * rather than 10 per minute, a 60x cut in enumeration throughput that a
+   * person registering an account will never notice. Attempts against an
+   * address that already exists are audited (see AuthService.register), so the
+   * probing is visible rather than silent.
+   *
+   * The real fix is email verification. Until then, do not "close" this by
+   * returning a fake 201.
+   */
   @Public()
+  @Throttle({ auth: { limit: 10, ttl: 3_600_000 } })
   @Post('register')
   @ApiOperation({ summary: 'Register a new user account' })
   register(@Body() dto: RegisterDto, @RequestMeta() request: RequestMetadata) {

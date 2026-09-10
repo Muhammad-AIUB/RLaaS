@@ -57,6 +57,25 @@ export class AuthService {
     const existingUser = await this.usersService.findByEmail(dto.email);
 
     if (existingUser) {
+      /**
+       * This 409 is an email oracle, and it cannot stop being one while
+       * register hands back an access token — see the note on the controller.
+       * Since it has to leak, make the leaking visible: a run of these from
+       * one address is somebody enumerating accounts, and without a record
+       * there is nothing to notice it by.
+       *
+       * `actorId` is left unset on purpose. The caller proved nothing about
+       * owning this address, so attributing the event to its owner would put
+       * a stranger's activity on their timeline.
+       */
+      void this.auditService.log({
+        action: 'auth.register_conflict',
+        resourceType: 'user',
+        resourceId: existingUser.id,
+        metadata: { email: dto.email },
+        request,
+      });
+
       throw new ConflictException('Email is already registered');
     }
 

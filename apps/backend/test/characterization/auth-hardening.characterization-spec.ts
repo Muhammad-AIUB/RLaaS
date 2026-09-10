@@ -290,6 +290,62 @@ describe('auth hardening regressions', () => {
   });
 
   /**
+   * DEFECT: register answers 409 for an address that exists, while login and
+   * forgot-password deliberately give identical answers either way. That 409
+   * is the email oracle the reset-code brute force needs.
+   *
+   * It cannot be closed while register returns an access token: a uniform
+   * response means nobody gets a token, which means email verification, which
+   * this codebase has no transport for. So it is made expensive and visible
+   * instead. These tests pin that decision so nobody "fixes" it with a fake
+   * 201, which would tell a real user their account exists when it does not.
+   */
+  describe('registration email oracle', () => {
+    it('still tells an honest caller the address is taken', async () => {
+      await registerUser();
+
+      const again = await registerUser();
+
+      expect(again.status).toBe(409);
+    });
+
+    it('records the conflict so enumeration is not silent', async () => {
+      await registerUser();
+      ctx.prisma.auditLogs.length = 0;
+
+      await registerUser();
+      await flushDeferredWork();
+
+      const conflict = ctx.prisma.auditLogs.find(
+        (row) => row.action === 'auth.register_conflict',
+      );
+
+      expect(conflict).toBeDefined();
+      expect(conflict?.metadata).toMatchObject({ email: EMAIL });
+      // Not attributed to the account owner: the caller proved nothing about
+      // owning the address, so this must not land on their timeline.
+      expect(conflict?.actorId ?? null).toBeNull();
+    });
+
+    it('is metered far tighter than the other auth routes', async () => {
+      const statuses: number[] = [];
+
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const response = await post('register', {
+          email: `probe${attempt}@rlaas.test`,
+          password: PASSWORD,
+          fullName: 'Probe',
+        });
+        statuses.push(response.status);
+      }
+
+      // 10/hour rather than 10/minute: a 60x cut in enumeration throughput
+      // that a person registering an account will never notice.
+      expect(statuses[statuses.length - 1]).toBe(429);
+    });
+  });
+
+  /**
    * DEFECT: hash(password, 8) is below current guidance (10-12) and roughly
    * 16x cheaper to attack offline than 12.
    */
