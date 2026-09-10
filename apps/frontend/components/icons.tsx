@@ -253,3 +253,24 @@ export const SystemIcon: IconComponent = ({ className }) => (
     <path d="M8 21h8M12 17v4" />
   </Stroke>
 );
+
+export const BookIcon: IconComponent = ({ className }) => (
+  <Stroke className={className}>
+    <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z" />
+    <path d="M4 17.5A2 2 0 0 1 6 15.5h13" />
+  </Stroke>
+);
+
+export const EyeIcon: IconComponent = ({ className }) => (
+  <Stroke className={className}>
+    <path d="M1.5 12S5.5 4.5 12 4.5 22.5 12 22.5 12 18.5 19.5 12 19.5 1.5 12 1.5 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </Stroke>
+);
+
+export const EyeOffIcon: IconComponent = ({ className }) => (
+  <Stroke className={className}>
+    <path d="M17.9 17.9A10.1 10.1 0 0 1 12 19.5C5.5 19.5 1.5 12 1.5 12a18.5 18.5 0 0 1 5.1-5.9M9.9 4.7A9.1 9.1 0 0 1 12 4.5c6.5 0 10.5 7.5 10.5 7.5a18.5 18.5 0 0 1-2.2 3.2m-6.7-1.1a3 3 0 1 1-4.2-4.2" />
+    <path d="M2 2l20 20" />
+  </Stroke>
+);

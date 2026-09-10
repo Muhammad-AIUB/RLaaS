@@ -4,16 +4,67 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { FormEvent, useEffect, useState } from 'react';
 import { ErrorState } from '@/components/feedback';
-import { LogoMark } from '@/components/icons';
-
-const PRODUCT_CAPABILITIES = [
-  { value: '4', label: 'Algorithms' },
-  { value: '5', label: 'Rule scopes' },
-  { value: 'RBAC', label: 'Per project' },
-];
+import { EyeIcon, EyeOffIcon, LogoMark } from '@/components/icons';
 
 const DEMO_EMAIL = 'demo@rlaas.local';
 const DEMO_PASSWORD = 'DemoPass123!';
+
+/**
+ * A static trace of one request through the rule chain.
+ *
+ * The panel used to hold three tiles reading "4 Algorithms", "5 Rule scopes",
+ * "RBAC / Per project" — the big-number template, where one of the numbers was
+ * an acronym. This shows the product's actual mechanism instead: a request
+ * arrives, the gateway walks the chain in order, the first matching rule
+ * decides. Everything below is a fixed illustration, not live data.
+ */
+const TRACE_STEPS = [
+  { scope: 'IP address', budget: '200 / 10s', matched: false },
+  { scope: 'User tier', budget: '100 / 1h', matched: false },
+  { scope: 'Endpoint', budget: '10 / 1m', matched: true },
+];
+
+function DecisionTrace() {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] font-mono text-xs">
+      <div className="flex items-baseline justify-between gap-3 border-b border-white/10 px-4 py-3">
+        <span className="text-slate-200">GET /api/orders</span>
+        <span className="text-slate-500">198.51.100.10</span>
+      </div>
+
+      <ol className="px-4 py-1">
+        {TRACE_STEPS.map((step, index) => (
+          <li
+            key={step.scope}
+            className="flex items-center gap-3 py-1.5 text-[0.6875rem]"
+          >
+            <span className="w-3 shrink-0 text-slate-600">{index + 1}</span>
+            <span
+              className={step.matched ? 'flex-1 text-slate-200' : 'flex-1 text-slate-500'}
+            >
+              {step.scope}
+            </span>
+            <span
+              className={step.matched ? 'shrink-0 text-slate-300' : 'shrink-0 text-slate-600'}
+            >
+              {step.budget}
+            </span>
+            <span className="w-10 shrink-0 text-right text-slate-500">
+              {step.matched ? 'match' : 'skip'}
+            </span>
+          </li>
+        ))}
+      </ol>
+
+      <div className="flex items-baseline justify-between gap-3 border-t border-white/10 px-4 py-3">
+        <span className="font-semibold uppercase tracking-wide text-red-400">
+          Blocked
+        </span>
+        <span className="text-slate-500">retry after 41s</span>
+      </div>
+    </div>
+  );
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -23,7 +74,7 @@ export default function LoginPage() {
   const [slowWarning, setSlowWarning] = useState(false);
 
   useEffect(() => {
-    // Pre-warm the backend so it's ready when the user submits
+    // Pre-warm the backend so it's ready when the user submits.
     fetch('/api/ping').catch(() => {});
   }, []);
 
@@ -74,79 +125,54 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen lg:grid-cols-2">
-      {/* Left brand panel — desktop only */}
-      <section className="relative hidden overflow-hidden bg-slate-900 text-white lg:flex lg:flex-col lg:justify-between lg:p-10">
-        <div
-          className="absolute inset-0 opacity-60"
-          style={{
-            backgroundImage:
-              'radial-gradient(60% 50% at 30% 30%, rgba(99,102,241,0.55) 0%, transparent 70%), radial-gradient(40% 40% at 80% 80%, rgba(16,185,129,0.35) 0%, transparent 70%)',
-          }}
-          aria-hidden
-        />
-        <div className="relative z-10">
-          <div className="flex items-center gap-2.5">
-            <LogoMark className="h-9 w-9" />
-            <span className="text-base font-semibold">RLaaS Platform</span>
-          </div>
+    <main className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
+      {/* Brand panel — desktop only. Flat ink, no halo: a radial glow behind a
+          headline is decoration pretending to be depth. */}
+      <section className="relative hidden flex-col justify-between bg-ink p-10 text-white lg:flex xl:p-14">
+        <div className="flex items-center gap-2.5">
+          <LogoMark className="h-8 w-8" />
+          <span className="text-sm font-semibold tracking-tight">
+            RLaaS Platform
+          </span>
         </div>
-        <div className="relative z-10 max-w-lg">
-          <p className="text-xs font-semibold uppercase tracking-widest text-brand-300">
+
+        <div className="max-w-md">
+          <p className="text-2xs font-semibold uppercase tracking-[0.14em] text-slate-500">
             Operator console
           </p>
-          <h1 className="mt-4 text-4xl font-semibold leading-tight tracking-tight">
+          <h1 className="mt-4 text-[2.5rem] font-semibold leading-[1.08] tracking-tight text-white">
             Protect the APIs you already have.
           </h1>
-          <p className="mt-4 text-base text-slate-300">
-            Inspect traffic, tune rules, and track how your rate limits perform
-            under pressure — all in one console.
+          <p className="mt-4 text-sm leading-relaxed text-slate-400">
+            Every request gets one answer. The gateway walks your rules in
+            order and stops at the first one that matches.
           </p>
-          <div className="mt-8 grid grid-cols-3 gap-3">
-            {PRODUCT_CAPABILITIES.map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-xl border border-white/10 bg-surface/5 p-4 backdrop-blur"
-              >
-                <p className="text-2xl font-semibold">{stat.value}</p>
-                <p className="mt-1 text-xs text-slate-400">{stat.label}</p>
-              </div>
-            ))}
+          <div className="mt-8">
+            <DecisionTrace />
           </div>
         </div>
-        <div className="relative z-10 text-xs text-slate-400">
-          © {new Date().getFullYear()} RLaaS · All rights reserved
-        </div>
+
+        <p className="text-2xs text-slate-600">
+          © {new Date().getFullYear()} RLaaS
+        </p>
       </section>
 
-      {/* Right form panel */}
-      <section className="flex items-center justify-center px-4 py-10 sm:px-6 lg:px-12">
-        <div className="w-full max-w-md">
+      {/* Form panel */}
+      <section className="flex items-center justify-center px-4 py-12 sm:px-6 lg:px-12">
+        <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-2 lg:hidden">
-            <LogoMark className="h-8 w-8" />
-            <span className="text-base font-semibold text-slate-900">RLaaS</span>
+            <LogoMark className="h-7 w-7" />
+            <span className="text-sm font-semibold text-slate-900">RLaaS</span>
           </div>
 
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-            Welcome back
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+            Sign in
           </h2>
           <p className="mt-1.5 text-sm text-slate-500">
-            Sign in with your operator credentials.
+            Operator credentials for the RLaaS control plane.
           </p>
 
-          {/* Gateway Tester CTA */}
-          <Link
-            href="/gateway-tester"
-            className="mt-5 flex items-center justify-between rounded-xl border-2 border-brand-200 bg-brand-50 px-4 py-3 text-sm transition-colors hover:border-brand-300 hover:bg-brand-100"
-          >
-            <div>
-              <p className="font-semibold text-brand-800">🧪 Try the Live Gateway Tester</p>
-              <p className="text-xs text-brand-600">No login needed — see rate limiting in action</p>
-            </div>
-            <span className="font-medium text-brand-700">→</span>
-          </Link>
-
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+          <form className="mt-7 space-y-4" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="label">
                 Email
@@ -162,14 +188,17 @@ export default function LoginPage() {
                 required
               />
             </div>
+
             <div>
-              <div className="flex items-center justify-between">
+              <div className="mb-1.5 flex items-baseline justify-between">
                 <label htmlFor="password" className="label !mb-0">
                   Password
                 </label>
-                <Link href="/forgot-password" className="text-xs text-slate-400 hover:text-slate-600">Forgot?</Link>
+                <Link href="/forgot-password" className="text-xs text-slate-500 hover:text-slate-800">
+                  Forgot password?
+                </Link>
               </div>
-              <div className="relative mt-1.5">
+              <div className="relative">
                 <input
                   id="password"
                   className="field pr-10"
@@ -183,19 +212,13 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600"
+                  className="absolute inset-y-0 right-0 flex items-center rounded-r-lg px-3 text-slate-400 transition-colors duration-state hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
-                      <line x1="1" y1="1" x2="23" y2="23" />
-                    </svg>
+                    <EyeOffIcon className="h-4 w-4" />
                   ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
+                    <EyeIcon className="h-4 w-4" />
                   )}
                 </button>
               </div>
@@ -204,8 +227,12 @@ export default function LoginPage() {
             {error ? <ErrorState message={error} /> : null}
 
             {slowWarning && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                ⏳ Server is waking up — this usually takes 10–20 seconds on first load. Please wait…
+              <div
+                role="status"
+                className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800"
+              >
+                The demo backend sleeps when idle and takes 10–20 seconds to
+                wake. Still working.
               </div>
             )}
 
@@ -213,46 +240,57 @@ export default function LoginPage() {
               {pending ? 'Signing in…' : 'Sign in'}
             </button>
 
-            <div className="relative flex items-center">
-              <div className="flex-1 border-t border-slate-200" />
-              <span className="mx-3 text-xs text-slate-400">or</span>
-              <div className="flex-1 border-t border-slate-200" />
-            </div>
-
             <button
               type="button"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+              className="btn-secondary w-full"
               onClick={handleGuestLogin}
               disabled={pending}
             >
-              {pending ? 'Signing in…' : 'Continue as Guest'}
+              {pending ? 'Signing in…' : 'Sign in to the demo account'}
             </button>
-            <p className="text-center text-xs text-slate-400">
-              Guest: <span className="font-mono">{DEMO_EMAIL}</span> / <span className="font-mono">{DEMO_PASSWORD}</span>
+
+            <p className="text-center text-2xs text-slate-500">
+              Shared demo account ·{' '}
+              <span className="font-mono">{DEMO_EMAIL}</span>
             </p>
           </form>
 
-          <p className="mt-6 text-sm text-slate-500">
-            New here?{' '}
+          {/* Named outcome rather than "Try it" with a test-tube emoji. */}
+          <div className="mt-7 border-t border-slate-200 pt-5">
             <Link
-              className="font-medium text-brand-700 hover:text-brand-800"
-              href="/register"
+              href="/gateway-tester"
+              className="group flex items-baseline justify-between gap-3"
             >
-              Create an account
+              <span>
+                <span className="text-sm font-medium text-slate-900 underline decoration-slate-300 underline-offset-[3px] transition-colors duration-state group-hover:decoration-slate-600">
+                  Watch a rate limit trigger
+                </span>
+                <span className="mt-0.5 block text-xs text-slate-500">
+                  Fire requests at a live gateway. No account needed.
+                </span>
+              </span>
+              <span aria-hidden className="shrink-0 text-slate-400 transition-colors duration-state group-hover:text-slate-700">
+                →
+              </span>
             </Link>
-          </p>
+          </div>
 
-          <p className="mt-6 text-xs text-slate-500">
-            Developed by{' '}
+          <div className="mt-6 flex items-baseline justify-between gap-3 text-xs text-slate-500">
+            <span>
+              New here?{' '}
+              <Link className="link" href="/register">
+                Create an account
+              </Link>
+            </span>
             <a
               href="https://www.mjubayer.dev/"
               target="_blank"
               rel="noreferrer"
-              className="font-medium text-brand-700 hover:text-brand-800"
+              className="link !text-slate-500"
             >
               Muhammad Jubayer
             </a>
-          </p>
+          </div>
         </div>
       </section>
     </main>

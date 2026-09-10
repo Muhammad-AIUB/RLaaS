@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import clsx from 'clsx';
 import {
   ArrowRightIcon,
+  BookIcon,
   type IconComponent,
   LogoMark,
   OverviewIcon,
@@ -88,22 +89,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </nav>
       </div>
 
-      <div className="mt-auto p-4">
-        <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-brand-50 to-white p-4">
-          <p className="text-sm font-semibold text-slate-900">
-            Need help getting started?
-          </p>
-          <p className="mt-1 text-xs text-slate-600">
-            Browse rule templates and best practices.
-          </p>
-          <a
-            href="/docs"
-            className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800"
-          >
-            View docs
-            <ArrowRightIcon className="h-3.5 w-3.5" />
-          </a>
-        </div>
+      {/* Docs was a promo card with a gradient and a line of happy talk asking
+          a question nobody asked. It is a destination, so it is a nav link. */}
+      <div className="mt-auto px-3 pb-4">
+        <Link
+          href="/docs"
+          onClick={onNavigate}
+          className="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors duration-state hover:bg-slate-100 hover:text-slate-900"
+        >
+          <BookIcon className="h-5 w-5 shrink-0 text-slate-400 group-hover:text-slate-600" />
+          <span>Docs</span>
+          <ArrowRightIcon className="ml-auto h-3.5 w-3.5 opacity-0 transition-opacity duration-state group-hover:opacity-100" />
+        </Link>
       </div>
     </div>
   );
