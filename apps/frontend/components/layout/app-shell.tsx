@@ -31,7 +31,7 @@ export function AppShell({ children }: PropsWithChildren) {
   return (
     <div className="min-h-screen bg-canvas">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-slate-200 bg-white lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-slate-200 bg-surface lg:block">
         <Sidebar />
       </aside>
 
@@ -45,14 +45,14 @@ export function AppShell({ children }: PropsWithChildren) {
       >
         <div
           className={clsx(
-            'absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity',
+            'absolute inset-0 bg-ink/60 backdrop-blur-sm transition-opacity',
             mobileOpen ? 'opacity-100' : 'opacity-0',
           )}
           onClick={() => setMobileOpen(false)}
         />
         <aside
           className={clsx(
-            'absolute inset-y-0 left-0 w-72 max-w-[85vw] border-r border-slate-200 bg-white shadow-xl transition-transform duration-200 ease-out',
+            'absolute inset-y-0 left-0 w-72 max-w-[85vw] border-r border-slate-200 bg-surface shadow-xl transition-transform duration-200 ease-out',
             mobileOpen ? 'translate-x-0' : '-translate-x-full',
           )}
         >

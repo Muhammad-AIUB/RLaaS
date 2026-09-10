@@ -253,8 +253,8 @@ export default function WebhooksPage() {
         </div>
       )}
       {editingWebhook && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
+          <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Edit Webhook</h2>
             <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={handleEdit}>
               <div className="sm:col-span-2">

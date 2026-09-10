@@ -287,8 +287,8 @@ export default function RulesPage() {
                     disabled={togglingId === rule.id}
                     className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
                       rule.isActive
-                        ? 'border-amber-200 bg-white text-amber-600 hover:bg-amber-50'
-                        : 'border-emerald-200 bg-white text-emerald-600 hover:bg-emerald-50'
+                        ? 'border-amber-200 bg-surface text-amber-600 hover:bg-amber-50'
+                        : 'border-emerald-200 bg-surface text-emerald-600 hover:bg-emerald-50'
                     }`}
                   >
                     {togglingId === rule.id ? '…' : rule.isActive ? 'Disable' : 'Enable'}
@@ -304,7 +304,7 @@ export default function RulesPage() {
                   {/* Delete */}
                   <button
                     type="button"
-                    className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition"
+                    className="rounded-lg border border-red-200 bg-surface px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition"
                     onClick={() => remove(rule.id)}
                   >
                     Delete
@@ -318,8 +318,8 @@ export default function RulesPage() {
 
       {/* Edit Modal */}
       {editingRule && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
+          <div className="w-full max-w-lg rounded-xl bg-surface p-6 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Edit Rule</h2>
             <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={handleEdit}>
               <div className="sm:col-span-2">

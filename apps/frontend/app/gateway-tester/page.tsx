@@ -191,7 +191,7 @@ export default function GatewayTesterPage() {
                 className={`rounded-xl border px-3 py-3 text-left text-sm transition-all ${
                   algo === a.value
                     ? 'border-brand-400 bg-brand-50 shadow-sm'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                    : 'border-slate-200 bg-surface text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <span
@@ -282,7 +282,7 @@ export default function GatewayTesterPage() {
               <button
                 onClick={handleBurst}
                 disabled={pending}
-                className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="w-full rounded-lg border border-slate-200 bg-surface px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 ⚡ Send 10 Rapid Requests
               </button>

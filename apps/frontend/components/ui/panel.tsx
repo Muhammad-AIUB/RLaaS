@@ -9,7 +9,7 @@ export function Panel({
   return (
     <section
       className={clsx(
-        'rounded-xl border border-slate-200 bg-white shadow-card',
+        'rounded-xl border border-slate-200 bg-surface shadow-card',
         padding && 'p-5 sm:p-6',
         className,
       )}

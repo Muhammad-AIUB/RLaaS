@@ -139,7 +139,7 @@ export default function ApiKeysPage() {
                   Copy this key now — it won't be shown again.
                 </p>
                 <div className="mt-2 flex items-center gap-2">
-                  <code className="flex-1 truncate rounded-md border border-amber-200 bg-white px-3 py-2 font-mono text-xs text-slate-800">
+                  <code className="flex-1 truncate rounded-md border border-amber-200 bg-surface px-3 py-2 font-mono text-xs text-slate-800">
                     {revealedKey}
                   </code>
                   <button

@@ -1,5 +1,29 @@
 import type { Config } from 'tailwindcss';
 
+/**
+ * Every color below resolves through a CSS variable holding space-separated
+ * RGB channels, so the `/opacity` modifier keeps working (`bg-surface/80`).
+ * The variables are defined once per theme in `app/globals.css`, which is what
+ * lets light and dark mode swap without touching a single component.
+ *
+ * See DESIGN.md for why the accent is graphite and color is reserved for
+ * allow/block/warn decisions.
+ */
+const rgb = (name: string) => `rgb(var(${name}) / <alpha-value>)`;
+
+const scale = (prefix: string) => ({
+  50: rgb(`--${prefix}-50`),
+  100: rgb(`--${prefix}-100`),
+  200: rgb(`--${prefix}-200`),
+  300: rgb(`--${prefix}-300`),
+  400: rgb(`--${prefix}-400`),
+  500: rgb(`--${prefix}-500`),
+  600: rgb(`--${prefix}-600`),
+  700: rgb(`--${prefix}-700`),
+  800: rgb(`--${prefix}-800`),
+  900: rgb(`--${prefix}-900`),
+});
+
 const config: Config = {
   content: [
     './app/**/*.{ts,tsx}',
@@ -9,65 +33,63 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Brand
-        brand: {
-          50: '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
-        },
-        // Semantic
-        surface: '#ffffff',
-        canvas: '#f8fafc',
-        border: '#e2e8f0',
-        // Status
-        success: '#10b981',
-        warning: '#f59e0b',
-        danger: '#ef4444',
-        info: '#3b82f6',
-        // Legacy (kept so we don't break unrelated references)
-        ink: '#0f172a',
-        fog: '#f8fafc',
-        moss: '#10b981',
-        pine: '#4f46e5',
-        ember: '#ef4444',
-        sand: '#fef3c7',
+        // Neutral graphite. Overrides Tailwind's `slate` on purpose: ~230 existing
+        // usages then pick up dark mode for free.
+        slate: scale('n'),
+        // The accent is achromatic — see DESIGN.md, "Color means a decision".
+        brand: scale('b'),
+        // Semantic. These are the only hues in the product.
+        emerald: scale('ok'),
+        red: scale('no'),
+        amber: scale('warn'),
+        blue: scale('info'),
+
+        surface: rgb('--surface'),
+        raised: rgb('--raised'),
+        canvas: rgb('--canvas'),
+        hairline: rgb('--hairline'),
+        // Stays dark in both themes: scrims, overlays.
+        ink: rgb('--ink-fixed'),
+
+        success: rgb('--ok-600'),
+        warning: rgb('--warn-600'),
+        danger: rgb('--no-600'),
+        info: rgb('--info-600'),
       },
       fontFamily: {
-        sans: [
-          'Inter',
-          'ui-sans-serif',
-          'system-ui',
-          '-apple-system',
-          'Segoe UI',
-          'Roboto',
-          'sans-serif',
-        ],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        sans: ['var(--font-ui)', 'ui-sans-serif', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
       },
       fontSize: {
-        '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+        '2xs': ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0.02em' }],
       },
       borderRadius: {
+        lg: '0.5rem',
         xl: '0.75rem',
         '2xl': '1rem',
       },
       boxShadow: {
-        card: '0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)',
+        // Offset + blur: light comes from above. No zero-offset halos.
+        card: '0 1px 1px 0 rgb(var(--shadow) / 0.04), 0 2px 4px -2px rgb(var(--shadow) / 0.08)',
         'card-hover':
-          '0 4px 6px -1px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.06)',
-        ring: '0 0 0 4px rgb(99 102 241 / 0.12)',
+          '0 2px 4px -1px rgb(var(--shadow) / 0.06), 0 8px 16px -6px rgb(var(--shadow) / 0.12)',
+        overlay:
+          '0 8px 12px -4px rgb(var(--shadow) / 0.10), 0 24px 48px -12px rgb(var(--shadow) / 0.24)',
+        ring: '0 0 0 3px rgb(var(--b-400) / 0.24)',
+      },
+      transitionTimingFunction: {
+        // Entering motion decelerates; nothing in the product accelerates in.
+        enter: 'cubic-bezier(0.2, 0, 0, 1)',
+      },
+      transitionDuration: {
+        state: '120ms',
+        enter: '160ms',
       },
       keyframes: {
-        'fade-in': {
-          '0%': { opacity: '0', transform: 'translateY(4px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+        // Starts visible. Content is never hidden behind animation timing.
+        'rise-in': {
+          '0%': { transform: 'translateY(6px)' },
+          '100%': { transform: 'translateY(0)' },
         },
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
@@ -75,7 +97,7 @@ const config: Config = {
         },
       },
       animation: {
-        'fade-in': 'fade-in 0.25s ease-out',
+        'rise-in': 'rise-in 160ms cubic-bezier(0.2, 0, 0, 1)',
         shimmer: 'shimmer 1.6s linear infinite',
       },
     },

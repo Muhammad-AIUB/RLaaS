@@ -1,17 +1,262 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------------------
+ * Design tokens. Channels are space-separated RGB so Tailwind's `/opacity`
+ * modifier keeps working through the variable (see tailwind.config.ts).
+ *
+ * Light is defined on bare `:root`; dark is redefined twice — once under the
+ * OS preference (guarded so an explicit light choice wins) and once under
+ * `[data-theme="dark"]` so the in-app toggle wins in both directions.
+ * ------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
-  --background: #f8fafc;
-  --surface: #ffffff;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --text-muted: #475569;
-  --brand: #4f46e5;
+
+  /* Neutral graphite */
+  --n-50: 246 247 248;
+  --n-100: 237 238 241;
+  --n-200: 223 226 230;
+  --n-300: 198 203 210;
+  --n-400: 125 132 142;
+  --n-500: 98 105 115;
+  --n-600: 75 81 90;
+  --n-700: 55 60 68;
+  --n-800: 35 39 45;
+  --n-900: 14 17 22;
+
+  /* Achromatic accent */
+  --b-50: 240 241 243;
+  --b-100: 228 230 234;
+  --b-200: 208 212 218;
+  --b-300: 174 180 189;
+  --b-400: 125 132 142;
+  --b-500: 75 81 90;
+  --b-600: 35 39 45;
+  --b-700: 23 26 31;
+  --b-800: 14 17 22;
+  --b-900: 8 9 12;
+
+  /* Allowed */
+  --ok-50: 233 246 238;
+  --ok-100: 207 235 217;
+  --ok-200: 165 216 184;
+  --ok-300: 124 197 152;
+  --ok-400: 71 178 116;
+  --ok-500: 30 158 90;
+  --ok-600: 23 127 72;
+  --ok-700: 18 98 55;
+  --ok-800: 14 75 42;
+  --ok-900: 9 48 25;
+
+  /* Blocked */
+  --no-50: 253 238 235;
+  --no-100: 251 218 211;
+  --no-200: 244 182 170;
+  --no-300: 236 143 124;
+  --no-400: 228 106 79;
+  --no-500: 220 74 48;
+  --no-600: 189 59 36;
+  --no-700: 151 48 29;
+  --no-800: 118 38 23;
+  --no-900: 79 26 16;
+
+  /* Degraded / paused */
+  --warn-50: 253 243 227;
+  --warn-100: 250 227 189;
+  --warn-200: 242 202 133;
+  --warn-300: 227 176 78;
+  --warn-400: 214 156 36;
+  --warn-500: 201 138 12;
+  --warn-600: 165 111 9;
+  --warn-700: 127 85 7;
+  --warn-800: 99 66 5;
+  --warn-900: 66 44 3;
+
+  /* Informational */
+  --info-50: 234 241 250;
+  --info-100: 211 226 245;
+  --info-200: 174 201 236;
+  --info-300: 130 168 220;
+  --info-400: 84 136 210;
+  --info-500: 42 111 196;
+  --info-600: 33 89 158;
+  --info-700: 26 69 121;
+  --info-800: 20 52 89;
+  --info-900: 13 34 57;
+
+  --canvas: 246 247 248;
+  --surface: 255 255 255;
+  --raised: 255 255 255;
+  --hairline: 223 226 230;
+  --ink-fixed: 14 17 22;
+  --shadow: 14 17 22;
+
+  --accent: 26 30 36;
+  --accent-fg: 255 255 255;
+  --accent-hover: 51 56 63;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --n-50: 20 23 29;
+    --n-100: 28 32 39;
+    --n-200: 41 46 55;
+    --n-300: 58 65 76;
+    --n-400: 110 118 130;
+    --n-500: 152 160 172;
+    --n-600: 179 186 196;
+    --n-700: 204 210 218;
+    --n-800: 221 225 231;
+    --n-900: 232 235 240;
+
+    --b-50: 28 32 39;
+    --b-100: 36 41 50;
+    --b-200: 51 58 69;
+    --b-300: 89 97 110;
+    --b-400: 145 153 164;
+    --b-500: 179 186 196;
+    --b-600: 226 229 234;
+    --b-700: 207 212 219;
+    --b-800: 226 229 234;
+    --b-900: 242 244 246;
+
+    --ok-50: 16 38 27;
+    --ok-100: 20 51 35;
+    --ok-200: 27 74 50;
+    --ok-300: 36 108 71;
+    --ok-400: 44 145 92;
+    --ok-500: 52 183 110;
+    --ok-600: 74 199 128;
+    --ok-700: 122 216 162;
+    --ok-800: 164 231 191;
+    --ok-900: 200 243 217;
+
+    --no-50: 46 21 16;
+    --no-100: 61 27 20;
+    --no-200: 89 40 29;
+    --no-300: 141 62 44;
+    --no-400: 190 85 61;
+    --no-500: 232 106 79;
+    --no-600: 240 129 103;
+    --no-700: 245 160 138;
+    --no-800: 249 191 175;
+    --no-900: 252 220 212;
+
+    --warn-50: 43 31 10;
+    --warn-100: 56 41 13;
+    --warn-200: 82 60 19;
+    --warn-300: 130 96 28;
+    --warn-400: 176 129 37;
+    --warn-500: 217 160 47;
+    --warn-600: 228 180 84;
+    --warn-700: 237 202 133;
+    --warn-800: 243 220 175;
+    --warn-900: 249 236 213;
+
+    --info-50: 16 30 48;
+    --info-100: 21 40 63;
+    --info-200: 32 59 92;
+    --info-300: 52 96 149;
+    --info-400: 71 126 188;
+    --info-500: 91 156 227;
+    --info-600: 122 176 235;
+    --info-700: 158 199 242;
+    --info-800: 194 219 248;
+    --info-900: 222 236 252;
+
+    --canvas: 12 14 18;
+    --surface: 20 23 29;
+    --raised: 27 31 38;
+    --hairline: 41 46 55;
+    --shadow: 0 0 0;
+
+    --accent: 232 235 240;
+    --accent-fg: 14 17 22;
+    --accent-hover: 255 255 255;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --n-50: 20 23 29;
+  --n-100: 28 32 39;
+  --n-200: 41 46 55;
+  --n-300: 58 65 76;
+  --n-400: 110 118 130;
+  --n-500: 152 160 172;
+  --n-600: 179 186 196;
+  --n-700: 204 210 218;
+  --n-800: 221 225 231;
+  --n-900: 232 235 240;
+
+  --b-50: 28 32 39;
+  --b-100: 36 41 50;
+  --b-200: 51 58 69;
+  --b-300: 89 97 110;
+  --b-400: 145 153 164;
+  --b-500: 179 186 196;
+  --b-600: 226 229 234;
+  --b-700: 207 212 219;
+  --b-800: 226 229 234;
+  --b-900: 242 244 246;
+
+  --ok-50: 16 38 27;
+  --ok-100: 20 51 35;
+  --ok-200: 27 74 50;
+  --ok-300: 36 108 71;
+  --ok-400: 44 145 92;
+  --ok-500: 52 183 110;
+  --ok-600: 74 199 128;
+  --ok-700: 122 216 162;
+  --ok-800: 164 231 191;
+  --ok-900: 200 243 217;
+
+  --no-50: 46 21 16;
+  --no-100: 61 27 20;
+  --no-200: 89 40 29;
+  --no-300: 141 62 44;
+  --no-400: 190 85 61;
+  --no-500: 232 106 79;
+  --no-600: 240 129 103;
+  --no-700: 245 160 138;
+  --no-800: 249 191 175;
+  --no-900: 252 220 212;
+
+  --warn-50: 43 31 10;
+  --warn-100: 56 41 13;
+  --warn-200: 82 60 19;
+  --warn-300: 130 96 28;
+  --warn-400: 176 129 37;
+  --warn-500: 217 160 47;
+  --warn-600: 228 180 84;
+  --warn-700: 237 202 133;
+  --warn-800: 243 220 175;
+  --warn-900: 249 236 213;
+
+  --info-50: 16 30 48;
+  --info-100: 21 40 63;
+  --info-200: 32 59 92;
+  --info-300: 52 96 149;
+  --info-400: 71 126 188;
+  --info-500: 91 156 227;
+  --info-600: 122 176 235;
+  --info-700: 158 199 242;
+  --info-800: 194 219 248;
+  --info-900: 222 236 252;
+
+  --canvas: 12 14 18;
+  --surface: 20 23 29;
+  --raised: 27 31 38;
+  --hairline: 41 46 55;
+  --shadow: 0 0 0;
+
+  --accent: 232 235 240;
+  --accent-fg: 14 17 22;
+  --accent-hover: 255 255 255;
 }
 
 * {
@@ -25,24 +270,24 @@ body {
 
 body {
   @apply bg-canvas text-slate-900 antialiased;
-  font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  @apply text-inherit no-underline;
+/* Browser surfaces themed from the palette, not left at defaults. */
+::selection {
+  background-color: rgb(var(--b-200));
+  color: rgb(var(--n-900));
 }
 
-/* Scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: rgb(var(--n-300)) transparent;
 }
 
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 *::-webkit-scrollbar-track {
@@ -50,116 +295,187 @@ a {
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: rgb(var(--n-300));
   border-radius: 8px;
-  border: 2px solid transparent;
+  border: 3px solid transparent;
   background-clip: padding-box;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+  background-color: rgb(var(--n-400));
   background-clip: padding-box;
 }
 
-/* Form field reset for cleaner look */
 input,
 select,
 textarea,
 button {
   font: inherit;
+  caret-color: rgb(var(--accent));
 }
 
-/* Utility: focus ring */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Components
+ * ------------------------------------------------------------------------- */
+
+/* Headings: balanced wrap, tightened tracking, never skipped levels. */
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+/* Anchors are unstyled by default because most are nav or card wrappers.
+   Inline prose links opt in via `.link` and keep an underline — color alone
+   is not an affordance in an achromatic system. */
+a {
+  @apply text-inherit no-underline;
+}
+
+.link {
+  @apply font-medium text-slate-900 underline decoration-slate-300 underline-offset-[3px] transition-colors duration-state hover:decoration-slate-600;
+}
+
+.link:visited {
+  @apply text-slate-700;
+}
+
 .focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500;
+  @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/50 focus-visible:ring-offset-1 focus-visible:ring-offset-surface;
 }
 
-/* Reusable input/select/textarea base */
 .field {
-  @apply block w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:outline-none focus:ring-2 focus:ring-brand-500/25 focus:border-brand-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500;
+  @apply block w-full rounded-lg border border-slate-200 bg-surface px-3 py-2 text-sm text-slate-900 transition-colors duration-state placeholder:text-slate-400 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-400/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400;
 }
 
 .label {
-  @apply mb-1.5 block text-sm font-medium text-slate-700;
+  @apply mb-1.5 block text-xs font-medium text-slate-600;
 }
 
-/* Buttons */
+/* Buttons. The accent is a variable rather than a scale step so the primary
+   button can invert cleanly (dark chip on light, light chip on dark). */
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60;
-}
-.btn-primary {
-  @apply btn bg-brand-600 text-white shadow-sm hover:bg-brand-700 focus:ring-brand-500/40;
-}
-.btn-secondary {
-  @apply btn border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 focus:ring-slate-300/40;
-}
-.btn-danger {
-  @apply btn border border-red-200 bg-white text-red-600 hover:bg-red-50 focus:ring-red-300/40;
-}
-.btn-ghost {
-  @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus:ring-slate-300/40;
-}
-.btn-sm {
-  @apply px-3 py-1.5 text-xs;
+  @apply inline-flex min-h-[2.25rem] items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors duration-state focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:cursor-not-allowed disabled:opacity-55;
 }
 
-/* Badge */
+.btn-primary {
+  @apply btn shadow-card focus-visible:ring-brand-400/60;
+  background-color: rgb(var(--accent));
+  color: rgb(var(--accent-fg));
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: rgb(var(--accent-hover));
+}
+
+.btn-secondary {
+  @apply btn border border-slate-200 bg-surface text-slate-700 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-brand-400/50;
+}
+
+.btn-ghost {
+  @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-brand-400/50;
+}
+
+/* Destructive: quiet until hover. A red button repeated down a list trains
+   people to stop reading it. */
+.btn-danger {
+  @apply btn border border-slate-200 bg-surface text-red-700 hover:border-red-300 hover:bg-red-50 focus-visible:ring-red-400/50;
+}
+
+.btn-danger-solid {
+  @apply btn bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-400/60;
+}
+
+.btn-sm {
+  @apply min-h-0 px-2.5 py-1.5 text-xs;
+}
+
+/* A finger needs 44px; a mouse does not. Grow the hit area only where the
+   pointer is coarse, so dense desktop toolbars stay dense. */
+@media (pointer: coarse) {
+  .btn,
+  .btn-sm,
+  .field {
+    min-height: 2.75rem;
+  }
+}
+
+/* Badges carry a decision, so they always pair the hue with a word. */
 .badge {
-  @apply inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium;
+  @apply inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide;
 }
 .badge-neutral {
-  @apply badge border-slate-200 bg-slate-50 text-slate-700;
+  @apply badge bg-slate-100 text-slate-600;
 }
 .badge-success {
-  @apply badge border-emerald-200 bg-emerald-50 text-emerald-700;
+  @apply badge bg-emerald-50 text-emerald-700;
 }
 .badge-danger {
-  @apply badge border-red-200 bg-red-50 text-red-700;
+  @apply badge bg-red-50 text-red-700;
 }
 .badge-warning {
-  @apply badge border-amber-200 bg-amber-50 text-amber-700;
+  @apply badge bg-amber-50 text-amber-700;
 }
 .badge-info {
-  @apply badge border-blue-200 bg-blue-50 text-blue-700;
+  @apply badge bg-blue-50 text-blue-700;
 }
 .badge-brand {
-  @apply badge border-brand-200 bg-brand-50 text-brand-700;
+  @apply badge bg-slate-100 text-slate-700;
 }
 
-/* Card */
 .card {
-  @apply rounded-xl border border-slate-200 bg-white shadow-card;
+  @apply rounded-xl border border-slate-200 bg-surface shadow-card;
 }
 
-/* Section title */
 .eyebrow {
-  @apply text-xs font-semibold uppercase tracking-wider text-slate-500;
+  @apply text-2xs font-semibold uppercase tracking-[0.08em] text-slate-500;
 }
 
-/* Table */
+/* Machine data: mono with tabular figures so columns line up character by
+   character. Anything a human might diff belongs in here. */
+.data {
+  @apply font-mono text-slate-800;
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
 .tbl {
   @apply w-full border-collapse text-sm;
 }
 .tbl thead th {
-  @apply border-b border-slate-200 bg-slate-50/60 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+  @apply border-b border-slate-200 px-3 py-2.5 text-left text-2xs font-semibold uppercase tracking-[0.08em] text-slate-500;
 }
 .tbl tbody td {
-  @apply border-b border-slate-100 px-4 py-3 text-slate-700;
+  @apply border-b border-slate-100 px-3 py-2.5 align-middle text-slate-700;
 }
 .tbl tbody tr:last-child td {
   @apply border-b-0;
 }
-.tbl tbody tr:hover {
-  @apply bg-slate-50/60;
+.tbl tbody tr:hover td {
+  @apply bg-slate-50;
 }
 
-/* Skeleton */
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(226, 232, 240, 0.6) 0%,
-    rgba(226, 232, 240, 1) 50%,
-    rgba(226, 232, 240, 0.6) 100%
+    rgb(var(--n-200) / 0.5) 0%,
+    rgb(var(--n-200) / 1) 50%,
+    rgb(var(--n-200) / 0.5) 100%
   );
   background-size: 200% 100%;
   @apply animate-shimmer rounded-md;

@@ -169,7 +169,7 @@ export default function ProjectMembersPage() {
                       <span className="badge-brand">OWNER</span>
                     ) : (
                       <select
-                        className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        className="rounded-md border border-slate-200 bg-surface px-2 py-1 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500"
                         value={member.role}
                         disabled={updatingId === member.id}
                         onChange={(e) => handleRoleChange(member, e.target.value)}
@@ -182,7 +182,7 @@ export default function ProjectMembersPage() {
                     {!isOwner && (
                       <button
                         type="button"
-                        className="rounded-lg border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition disabled:opacity-50"
+                        className="rounded-lg border border-red-200 bg-surface px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50 transition disabled:opacity-50"
                         onClick={() => handleRemove(member.id)}
                         disabled={removingId === member.id}
                       >

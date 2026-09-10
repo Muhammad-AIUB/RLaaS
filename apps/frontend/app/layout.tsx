@@ -1,5 +1,27 @@
 import type { Metadata, Viewport } from 'next';
+import { Archivo, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
+
+/**
+ * Two faces, both doing a job (see DESIGN.md):
+ *  - Archivo carries UI and headings
+ *  - IBM Plex Mono carries every value that came out of a machine
+ * Self-hosted by next/font, so there is no render-blocking CDN request and
+ * no flash of fallback text.
+ */
+const archivo = Archivo({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-ui',
+  weight: ['400', '500', '600', '700'],
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-mono',
+  weight: ['400', '500', '600'],
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.mjubayer.dev'),
@@ -59,7 +81,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#f8fafc',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f6f7f8' },
+    { media: '(prefers-color-scheme: dark)', color: '#0c0e12' },
+  ],
 };
 
 export default function RootLayout({
@@ -68,8 +93,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full">
-      <body className="h-full" suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`h-full ${archivo.variable} ${plexMono.variable}`}
+      suppressHydrationWarning
+    >
+      <body className="h-full font-sans" suppressHydrationWarning>
         {children}
       </body>
     </html>

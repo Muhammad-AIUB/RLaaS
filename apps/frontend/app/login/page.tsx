@@ -106,7 +106,7 @@ export default function LoginPage() {
             {PRODUCT_CAPABILITIES.map((stat) => (
               <div
                 key={stat.label}
-                className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur"
+                className="rounded-xl border border-white/10 bg-surface/5 p-4 backdrop-blur"
               >
                 <p className="text-2xl font-semibold">{stat.value}</p>
                 <p className="mt-1 text-xs text-slate-400">{stat.label}</p>

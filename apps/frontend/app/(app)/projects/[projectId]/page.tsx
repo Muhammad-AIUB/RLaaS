@@ -162,7 +162,7 @@ export default function ProjectDetailsPage() {
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition"
+                  className="rounded-lg border border-red-200 bg-surface px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 transition"
                   onClick={() => { setShowDelete(true); setActionError(''); }}
                 >
                   Delete
@@ -177,8 +177,8 @@ export default function ProjectDetailsPage() {
 
       {/* Edit Modal */}
       {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
+          <div className="w-full max-w-md rounded-xl bg-surface p-6 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Edit Project</h2>
             <form className="mt-4 space-y-4" onSubmit={handleEdit}>
               <div>
@@ -226,8 +226,8 @@ export default function ProjectDetailsPage() {
 
       {/* Delete Confirmation Modal */}
       {showDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 px-4">
+          <div className="w-full max-w-sm rounded-xl bg-surface p-6 shadow-xl">
             <h2 className="text-lg font-semibold text-slate-900">Delete project?</h2>
             <p className="mt-2 text-sm text-slate-500">
               This will permanently delete <strong>{data.name}</strong> and all its rules, API keys, and logs. This action cannot be undone.

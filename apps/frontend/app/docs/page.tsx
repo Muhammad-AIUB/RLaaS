@@ -103,13 +103,13 @@ export default function DocsPage() {
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>
               <p className="text-xs text-slate-500 mb-1">Email</p>
-              <code className="block rounded-md bg-white px-3 py-2 text-sm font-mono text-slate-800 shadow-sm border border-slate-200">
+              <code className="block rounded-md bg-surface px-3 py-2 text-sm font-mono text-slate-800 shadow-sm border border-slate-200">
                 demo@rlaas.local
               </code>
             </div>
             <div>
               <p className="text-xs text-slate-500 mb-1">Password</p>
-              <code className="block rounded-md bg-white px-3 py-2 text-sm font-mono text-slate-800 shadow-sm border border-slate-200">
+              <code className="block rounded-md bg-surface px-3 py-2 text-sm font-mono text-slate-800 shadow-sm border border-slate-200">
                 DemoPass123!
               </code>
             </div>
