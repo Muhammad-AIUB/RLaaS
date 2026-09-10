@@ -281,6 +281,41 @@ export class FakePrisma {
 
   /* ---- webhook_endpoints ---- */
   webhookEndpoint = {
+    // Mirrors WebhooksService#create. Added when the SSRF fix made a valid
+    // URL reach the service for the first time — before that, validation
+    // rejected every URL the tests tried, so this path was never exercised.
+    create: async (args: Row): Promise<Row> => {
+      const row: Row = {
+        id: randomUUID(),
+        signingSecret: null,
+        lastTriggeredAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        ...defined(args?.data),
+      };
+      this.webhookEndpoints.push(row);
+      return row;
+    },
+
+    findFirst: async (args: Row): Promise<Row | null> => {
+      const where = args?.where ?? {};
+      return (
+        this.webhookEndpoints.find(
+          (row) =>
+            (where.id === undefined || row.id === where.id) &&
+            (where.projectId === undefined || row.projectId === where.projectId),
+        ) ?? null
+      );
+    },
+
+    delete: async (args: Row): Promise<Row> => {
+      const index = this.webhookEndpoints.findIndex(
+        (row) => row.id === args?.where?.id,
+      );
+      if (index === -1) unsupported('webhookEndpoint', 'delete', args);
+      return this.webhookEndpoints.splice(index, 1)[0];
+    },
+
     findMany: async (args: Row = {}): Promise<Row[]> => {
       const where = args.where ?? {};
       return this.webhookEndpoints.filter(

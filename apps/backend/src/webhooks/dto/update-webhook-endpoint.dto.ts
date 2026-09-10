@@ -5,11 +5,11 @@ import {
   IsInt,
   IsOptional,
   IsString,
-  IsUrl,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsSafeWebhookUrl } from '../validators/is-safe-webhook-url.validator';
 
 export class UpdateWebhookEndpointDto {
   @ApiPropertyOptional({ example: 'Security Ops webhook' })
@@ -20,7 +20,7 @@ export class UpdateWebhookEndpointDto {
 
   @ApiPropertyOptional({ example: 'https://hooks.example.com/rlaas-alerts' })
   @IsOptional()
-  @IsUrl({ require_tld: false })
+  @IsSafeWebhookUrl()
   url?: string;
 
   @ApiPropertyOptional({ example: 25 })

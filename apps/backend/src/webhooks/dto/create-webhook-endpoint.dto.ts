@@ -8,11 +8,11 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  IsUrl,
   Max,
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsSafeWebhookUrl } from '../validators/is-safe-webhook-url.validator';
 
 export class CreateWebhookEndpointDto {
   @ApiProperty({ example: 'Security Ops webhook' })
@@ -22,7 +22,7 @@ export class CreateWebhookEndpointDto {
   name!: string;
 
   @ApiProperty({ example: 'https://hooks.example.com/rlaas-alerts' })
-  @IsUrl({ require_tld: false })
+  @IsSafeWebhookUrl()
   url!: string;
 
   @ApiPropertyOptional({
