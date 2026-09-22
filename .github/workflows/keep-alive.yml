@@ -42,12 +42,19 @@ jobs:
       - name: Wake the instance and warm Redis
         id: health
         run: |
-          CODE=$(curl -s -o /dev/null -m 180 -w "%{http_code}" \
+          # NOTE: only ONE -w flag is allowed. A second one makes curl exit 23
+          # with "Failed writing body" before the request is even sent. That
+          # was the root cause of run #1008.
+          CODE=$(curl -s -o /dev/null -m 180 -w "%{http_code} %{time_starttransfer}" \
             --retry 3 --retry-connrefused --retry-delay 10 \
-            -w "%{http_code} %{time_starttransfer}" \
             https://rlaas.onrender.com/api/v1/health)
           echo "health: $CODE"
-          echo "$CODE" | grep -q '^200' || echo "::warning::health did not answer 200 ($CODE)"
+          if ! echo "$CODE" | grep -q '^200'; then
+            echo "::warning::health did not answer 200 ($CODE)"
+            # Fail the job so a real Render cold-start is visible in the UI
+            # instead of a green tick on a silently failed warmup.
+            exit 1
+          fi
 
       - name: Warm the Postgres connection too
         run: |
