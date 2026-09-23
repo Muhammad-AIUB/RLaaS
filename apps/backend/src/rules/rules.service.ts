@@ -7,11 +7,13 @@ import {
   RuleScope,
   UserTier,
 } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AlgorithmRegistryService } from '../algorithms/algorithm-registry.service';
 import { RateLimitResult } from '../algorithms/interfaces/rate-limit-result.interface';
 import { AuditService } from '../audit/audit.service';
 import { RequestMetadata } from '../common/interfaces/request-metadata.interface';
+import { decodeCursor, encodeCursor, twoColumnKeyset } from '../common/utils/cursor';
 import { GatewayCheckDto } from '../gateway/dto/gateway-check.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
@@ -19,6 +21,7 @@ import { RedisService } from '../redis/redis.service';
 import { ResolvedRateLimitRule } from '../rate-limiter/interfaces/resolved-rate-limit-rule.interface';
 import { mapRuleAlgorithm } from '../rate-limiter/utils/rule-algorithm.util';
 import { CreateRuleDto } from './dto/create-rule.dto';
+import { ListRulesQueryDto } from './dto/list-rules.dto';
 import { SimulateRuleDto } from './dto/simulate-rule.dto';
 import { UpdateRuleDto } from './dto/update-rule.dto';
 
@@ -35,6 +38,7 @@ export class RulesService {
     private readonly algorithmRegistryService: AlgorithmRegistryService,
     private readonly auditService: AuditService,
     private readonly redisService: RedisService,
+    private readonly configService: ConfigService,
   ) {}
 
   private rulesListKey(projectId: string) {
@@ -91,7 +95,11 @@ export class RulesService {
     return rule;
   }
 
-  async listByProject(userId: string, projectId: string) {
+  async listByProject(
+    userId: string,
+    projectId: string,
+    query: ListRulesQueryDto,
+  ) {
     // Authorization first: the cache key is scoped to the project, not to the
     // caller, so a warm entry used to be readable by any authenticated user.
     await this.projectsService.assertProjectAccess(userId, projectId, [
@@ -100,22 +108,108 @@ export class RulesService {
       ProjectRole.VIEWER,
     ]);
 
-    const key = this.rulesListKey(projectId);
+    const limit = query.limit ?? 50;
+    const sort = query.sort ?? 'priority';
+
+    // Sort-aware cache key. Two clients hitting the same project with the same
+    // filters share an entry; a different sort or filter busts to Postgres.
+    const cacheKeyParts = [
+      'cache:rules:project',
+      projectId,
+      sort,
+      String(limit),
+      query.scope ?? '*',
+      query.algorithm ?? '*',
+      query.isActive === undefined ? '*' : String(query.isActive),
+      query.cursor ?? 'first',
+    ];
+    const key = cacheKeyParts.join(':');
+
     try {
       const cached = await this.redisService.getClient().get(key);
       if (cached) return JSON.parse(cached);
     } catch { /* fall through */ }
 
-    const rules = await this.prismaService.rateLimitRule.findMany({
-      where: { projectId },
-      orderBy: [{ priority: 'asc' }, { createdAt: 'desc' }],
+    const secret = this.configService.getOrThrow<string>('JWT_SECRET');
+    const cursor = query.cursor ? decodeCursor(query.cursor, secret) : null;
+
+    const where: Prisma.RateLimitRuleWhereInput = {
+      projectId,
+      ...(query.scope ? { scope: query.scope } : {}),
+      ...(query.algorithm ? { algorithm: query.algorithm } : {}),
+      ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+      ...(sort === 'priority' && cursor
+        ? {
+            OR: [
+              { priority: { gt: Number(cursor['priority']) } },
+              {
+                AND: [
+                  { priority: Number(cursor['priority']) },
+                  {
+                    OR: [
+                      { createdAt: { gt: new Date(String(cursor['createdAt'])) } },
+                      {
+                        AND: [
+                          {
+                            createdAt: new Date(String(cursor['createdAt'])),
+                          },
+                          { id: { gt: String(cursor['id']) } },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }
+        : {}),
+      ...(sort === 'recent' && cursor
+        ? twoColumnKeyset('createdAt', 'desc', cursor)
+        : {}),
+    };
+
+    const orderBy: Prisma.RateLimitRuleOrderByWithRelationInput[] =
+      sort === 'priority'
+        ? [{ priority: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }]
+        : [{ createdAt: 'desc' }, { id: 'desc' }];
+
+    const rows = await this.prismaService.rateLimitRule.findMany({
+      where,
+      orderBy,
+      take: limit + 1,
     });
 
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
+
+    const result = {
+      data: page,
+      nextCursor:
+        hasMore && last
+          ? encodeCursor(
+              sort === 'priority'
+                ? {
+                    priority: last.priority,
+                    createdAt: last.createdAt.toISOString(),
+                    id: last.id,
+                  }
+                : {
+                    createdAt: last.createdAt.toISOString(),
+                    id: last.id,
+                  },
+              secret,
+            )
+          : null,
+    };
+
     try {
-      await this.redisService.getClient().setex(key, RULES_LIST_TTL, JSON.stringify(rules));
+      await this.redisService
+        .getClient()
+        .setex(key, RULES_LIST_TTL, JSON.stringify(result));
     } catch { /* non-critical */ }
 
-    return rules;
+    return result;
   }
 
   async update(

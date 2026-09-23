@@ -1,6 +1,7 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { Idempotent } from '../common/decorators/idempotent.decorator';
 import { RequestMeta } from '../common/decorators/request-metadata.decorator';
 import type { RequestMetadata } from '../common/interfaces/request-metadata.interface';
 import { AuthThrottlerGuard } from './guards/auth-throttler.guard';
@@ -47,6 +48,7 @@ export class AuthController {
   @Public()
   @Throttle({ auth: { limit: 10, ttl: 3_600_000 } })
   @Post('register')
+  @Idempotent()
   @ApiOperation({ summary: 'Register a new user account' })
   register(@Body() dto: RegisterDto, @RequestMeta() request: RequestMetadata) {
     return this.authService.register(dto, request);

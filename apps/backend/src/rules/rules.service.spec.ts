@@ -42,6 +42,7 @@ describe('RulesService', () => {
     algorithmRegistryService,
     auditService,
     redisService,
+    { getOrThrow: () => 'test-secret' } as never,
   );
 
   beforeEach(() => {

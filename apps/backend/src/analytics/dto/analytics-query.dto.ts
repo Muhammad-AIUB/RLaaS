@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsDate, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class AnalyticsQueryDto {
   @ApiPropertyOptional({ example: '2026-05-01T00:00:00.000Z' })
@@ -22,4 +22,9 @@ export class AnalyticsQueryDto {
   @Min(1)
   @Max(100)
   limit?: number;
+
+  @ApiPropertyOptional({ description: 'Opaque cursor from a previous page' })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }

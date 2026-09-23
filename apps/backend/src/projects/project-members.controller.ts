@@ -11,6 +11,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Idempotent } from '../common/decorators/idempotent.decorator';
 import { RequestMeta } from '../common/decorators/request-metadata.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import type { RequestMetadata } from '../common/interfaces/request-metadata.interface';
@@ -36,6 +37,7 @@ export class ProjectMembersController {
   }
 
   @Post()
+  @Idempotent()
   @ApiOperation({ summary: 'Add a user to a project with a role' })
   add(
     @CurrentUser() user: AuthenticatedUser,

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { ConfigModule } from '@nestjs/config';
@@ -6,6 +7,9 @@ import { validateEnv } from './config/env.validation';
 import { AlgorithmsModule } from './algorithms/algorithms.module';
 import { ApiKeysModule } from './api-keys/api-keys.module';
 import { AuthModule } from './auth/auth.module';
+import { EtagInterceptor } from './common/interceptors/etag.interceptor';
+import { RateLimitHeadersInterceptor } from './common/interceptors/rate-limit-headers.interceptor';
+import { IdempotencyInterceptor } from './common/decorators/idempotent.decorator';
 import { GatewayModule } from './gateway/gateway.module';
 import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -39,6 +43,11 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     RateLimiterModule,
     GatewayModule,
     HealthModule,
+  ],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: RateLimitHeadersInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: EtagInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
   ],
 })
 export class AppModule {}

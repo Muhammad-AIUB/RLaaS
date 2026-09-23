@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsDate, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class AuditQueryDto {
   @ApiPropertyOptional({ example: '2026-01-01T00:00:00.000Z' })
@@ -22,4 +22,14 @@ export class AuditQueryDto {
   @Min(1)
   @Max(200)
   limit?: number;
+
+  /**
+   * Opaque cursor from a previous page's `nextCursor`. Omitted on the first
+   * page; required for every subsequent page. The cursor is signed with the
+   * JWT secret so a client cannot forge one that escapes its own project.
+   */
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  cursor?: string;
 }

@@ -33,6 +33,10 @@ import { JwtStrategy } from './strategies/jwt.strategy';
      */
     ThrottlerModule.forRoot([
       { name: 'auth', ttl: 60_000, limit: 10 },
+      // Gateway endpoint: 200/s per IP. Generous for a real client, useless
+      // for an attacker filling Redis with demo keys or burning the
+      // request-log table.
+      { name: 'gateway', ttl: 1_000, limit: 200 },
     ]),
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -49,6 +53,6 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard, AuthThrottlerGuard],
-  exports: [AuthService, JwtAuthGuard, JwtModule, PassportModule],
+  exports: [AuthService, JwtAuthGuard, JwtModule, PassportModule, ThrottlerModule],
 })
 export class AuthModule {}

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Cacheable } from '../common/interceptors/etag.interceptor';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
@@ -24,6 +25,7 @@ export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
   @Get('overview')
+  @Cacheable({ maxAge: 30, scope: 'private' })
   @ApiOperation({ summary: 'Get dashboard overview metrics for a project' })
   getOverview(
     @CurrentUser() user: AuthenticatedUser,

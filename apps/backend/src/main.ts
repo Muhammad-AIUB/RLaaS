@@ -46,6 +46,11 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new HttpExceptionFilter());
 
+  // Global interceptors are registered via APP_INTERCEPTOR in AppModule:
+  //   - RateLimitHeadersInterceptor — adds X-RateLimit-* and Retry-After
+  //   - EtagInterceptor — adds ETag + Cache-Control on @Cacheable handlers
+  //   - IdempotencyInterceptor — replays cached responses on Idempotency-Key
+
   const swaggerConfig = new DocumentBuilder()
     .setTitle('RLaaS Platform API')
     .setDescription(

@@ -10,7 +10,9 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Cacheable } from '../common/interceptors/etag.interceptor';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Idempotent } from '../common/decorators/idempotent.decorator';
 import { RequestMeta } from '../common/decorators/request-metadata.decorator';
 import type { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
 import type { RequestMetadata } from '../common/interfaces/request-metadata.interface';
@@ -27,6 +29,7 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
+  @Idempotent()
   @ApiOperation({ summary: 'Create a project' })
   create(
     @CurrentUser() user: AuthenticatedUser,
@@ -37,6 +40,7 @@ export class ProjectsController {
   }
 
   @Get()
+  @Cacheable({ maxAge: 60, scope: 'private' })
   @ApiOperation({ summary: 'List projects for the authenticated user' })
   list(@CurrentUser() user: AuthenticatedUser) {
     return this.projectsService.listByUser(user.sub);
