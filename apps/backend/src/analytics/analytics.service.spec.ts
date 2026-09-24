@@ -52,7 +52,16 @@ describe('AnalyticsService', () => {
     redisService,
   );
 
+  // Pinned clock so the default window has an exact expected boundary.
+  const NOW = new Date('2026-09-23T12:00:00.000Z');
+  const RETENTION_START = new Date('2026-08-19T12:00:00.000Z'); // NOW - 35 days
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeEach(() => {
+    jest.spyOn(Date, 'now').mockReturnValue(NOW.getTime());
     countMock.mockReset();
     groupByMock.mockReset();
     requestLogFindManyMock.mockReset();
@@ -78,6 +87,50 @@ describe('AnalyticsService', () => {
       blockedRequests: 50,
       blockRate: 25,
     });
+  });
+
+  it('bounds every aggregate to the 35-day retention window when no from is given', async () => {
+    groupByMock.mockResolvedValue([]);
+
+    await service.getOverview('user-1', 'project-1', {});
+    await service.getTopIps('user-1', 'project-1', {});
+    await service.getTopEndpoints('user-1', 'project-1', {});
+    await service.getAlgorithmPerformance('user-1', 'project-1', {});
+
+    expect(groupByMock).toHaveBeenCalledTimes(4);
+    for (const [args] of groupByMock.mock.calls) {
+      expect(args.where).toEqual({
+        projectId: 'project-1',
+        createdAt: { gte: RETENTION_START },
+      });
+    }
+  });
+
+  it('uses an explicit from/to instead of the default window', async () => {
+    groupByMock.mockResolvedValue([]);
+    const from = new Date('2026-09-01T00:00:00.000Z');
+    const to = new Date('2026-09-10T00:00:00.000Z');
+
+    await service.getOverview('user-1', 'project-1', { from, to });
+
+    expect(groupByMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { projectId: 'project-1', createdAt: { gte: from, lte: to } },
+      }),
+    );
+  });
+
+  it('applies the default window when only to is given', async () => {
+    groupByMock.mockResolvedValue([]);
+    const to = new Date('2026-09-10T00:00:00.000Z');
+
+    await service.getOverview('user-1', 'project-1', { to });
+
+    expect(groupByMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { projectId: 'project-1', createdAt: { gte: RETENTION_START, lte: to } },
+      }),
+    );
   });
 
   it('builds a snapshot from aggregated analytics inputs', async () => {
@@ -222,6 +275,7 @@ describe('AnalyticsService', () => {
     expect(requestLogFindManyMock).toHaveBeenCalledWith({
       where: {
         projectId: 'project-1',
+        createdAt: { gte: RETENTION_START },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 8,

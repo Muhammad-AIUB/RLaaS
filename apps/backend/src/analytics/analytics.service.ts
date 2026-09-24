@@ -11,6 +11,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProjectsService } from '../projects/projects.service';
 import { RedisService } from '../redis/redis.service';
+import { REQUEST_LOG_RETENTION_MS } from '../request-log-retention/request-log-retention.constants';
 import { AnalyticsQueryDto } from './dto/analytics-query.dto';
 import { CreateSnapshotDto } from './dto/create-snapshot.dto';
 
@@ -386,17 +387,17 @@ export class AnalyticsService {
     });
   }
 
+  // An omitted `from` means "the retention window", not "all time". Rows older
+  // than REQUEST_LOG_RETENTION_DAYS are deleted by the retention job, so an
+  // unbounded query would report a total whose period nobody chose. Bounding
+  // it here makes the window the same whether or not the job has run today.
   private buildWhere(projectId: string, query: AnalyticsQueryDto): Prisma.RequestLogWhereInput {
     return {
       projectId,
-      ...(query.from || query.to
-        ? {
-            createdAt: {
-              ...(query.from ? { gte: query.from } : {}),
-              ...(query.to ? { lte: query.to } : {}),
-            },
-          }
-        : {}),
+      createdAt: {
+        gte: query.from ?? new Date(Date.now() - REQUEST_LOG_RETENTION_MS),
+        ...(query.to ? { lte: query.to } : {}),
+      },
     };
   }
 

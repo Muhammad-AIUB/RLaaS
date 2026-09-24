@@ -3,7 +3,11 @@ import { Type } from 'class-transformer';
 import { IsDate, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class AnalyticsQueryDto {
-  @ApiPropertyOptional({ example: '2026-05-01T00:00:00.000Z' })
+  @ApiPropertyOptional({
+    example: '2026-05-01T00:00:00.000Z',
+    description:
+      'Defaults to 35 days before now. Request logs are kept for 35 days, so an earlier value still returns at most 35 days of data.',
+  })
   @IsOptional()
   @Type(() => Date)
   @IsDate()

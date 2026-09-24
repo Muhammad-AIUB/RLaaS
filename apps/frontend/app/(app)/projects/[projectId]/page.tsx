@@ -8,6 +8,7 @@ import { ArrowRightIcon } from '@/components/icons';
 import { PageHeader, ProjectTabs } from '@/components/layout';
 import { ConfirmDialog, Panel, PanelHeader, RankRow, SplitBar } from '@/components/ui';
 import { analyticsApi, apiKeysApi, projectsApi, rulesApi } from '@/lib/api';
+import { ANALYTICS_WINDOW_LABEL, ANALYTICS_WINDOW_PHRASE } from '@/lib/analytics-window';
 import {
   algorithmLabel,
   formatCount,
@@ -198,8 +199,8 @@ export default function ProjectDetailsPage() {
           }
           description={
             overview && overview.totalRequests > 0
-              ? `${formatCount(overview.totalRequests)} requests have passed through the gateway for this project.`
-              : 'Point a client at the gateway with one of this project’s API keys and decisions will start appearing here.'
+              ? `${formatCount(overview.totalRequests)} requests have passed through the gateway for this project in ${ANALYTICS_WINDOW_PHRASE}.`
+              : `No gateway decisions in ${ANALYTICS_WINDOW_PHRASE}. Point a client at the gateway with one of this project’s API keys and decisions will start appearing here.`
           }
           action={
             <Link href={`/projects/${projectId}/analytics`} className="btn-secondary btn-sm">
@@ -345,7 +346,11 @@ export default function ProjectDetailsPage() {
         {/* Heaviest callers */}
         <Panel padding={false}>
           <div className="p-5 sm:p-6 sm:pb-3">
-            <PanelHeader eyebrow="Callers" title="Heaviest source addresses" />
+            <PanelHeader
+              eyebrow="Callers"
+              title="Heaviest source addresses"
+              description={ANALYTICS_WINDOW_LABEL}
+            />
           </div>
           {stateLoading ? (
             <div className="space-y-2 px-5 pb-6 sm:px-6">
@@ -354,7 +359,7 @@ export default function ProjectDetailsPage() {
             </div>
           ) : state.topIps.length === 0 ? (
             <p className="px-5 pb-6 text-sm text-slate-500 sm:px-6">
-              No requests recorded yet.
+              No requests in {ANALYTICS_WINDOW_PHRASE}.
             </p>
           ) : (
             <ul className="px-2 pb-4">

@@ -8,6 +8,11 @@ import { PageHeader, ProjectTabs } from '@/components/layout';
 import { MetricCard, Panel, PanelHeader, RankRow, SplitBar } from '@/components/ui';
 import { analyticsApi } from '@/lib/api';
 import {
+  ANALYTICS_WINDOW_DAYS,
+  ANALYTICS_WINDOW_LABEL,
+  ANALYTICS_WINDOW_PHRASE,
+} from '@/lib/analytics-window';
+import {
   algorithmLabel,
   formatAbsolute,
   formatCount,
@@ -93,7 +98,7 @@ export default function ProjectAnalyticsPage() {
         ]}
         eyebrow="Insights"
         title="Analytics"
-        description="Who is calling, what they are calling, and which rule decided."
+        description={`Who is calling, what they are calling, and which rule decided, over ${ANALYTICS_WINDOW_PHRASE}. Request logs are kept for ${ANALYTICS_WINDOW_DAYS} days.`}
       />
       <ProjectTabs projectId={projectId} />
     </>
@@ -145,19 +150,19 @@ export default function ProjectAnalyticsPage() {
         <MetricCard
           label="Requests"
           value={formatCount(overview.totalRequests)}
-          hint="Decisions made by the gateway"
+          hint={`Gateway decisions, ${ANALYTICS_WINDOW_LABEL.toLowerCase()}`}
         />
         <MetricCard
           label="Blocked"
           value={formatCount(overview.blockedRequests)}
           tone="danger"
-          hint={`${formatPercent(overview.blockRate)} of all requests`}
+          hint={`${formatPercent(overview.blockRate)} of requests`}
         />
         <MetricCard
           label="Allowed"
           value={formatCount(overview.allowedRequests)}
           tone="success"
-          hint={`${formatPercent(100 - overview.blockRate)} of all requests`}
+          hint={`${formatPercent(100 - overview.blockRate)} of requests`}
         />
       </div>
 

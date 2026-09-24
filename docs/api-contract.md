@@ -324,6 +324,12 @@ with `priority: 1`. `method: null` matches any method. `API_KEY` scope matches
 
 Query DTO for every `GET`: `{ from?: ISO date, to?: ISO date, limit?: int 1..100 }`.
 
+`from` defaults to 35 days before now (`REQUEST_LOG_RETENTION_DAYS`,
+`request-log-retention.constants.ts`) on `/overview`, `/top-ips`, `/top-endpoints`,
+`/algorithms` and `/logs`. Omitting it means "the last 35 days", not "all time": request
+logs older than that are deleted by the retention job, so an earlier `from` still returns
+at most 35 days of data.
+
 | Route | Status | Role | Response |
 |---|---|---|---|
 | `GET /overview` | 200 | READ | `{ totalRequests, allowedRequests, blockedRequests, blockRate }` (percent, 2dp) |

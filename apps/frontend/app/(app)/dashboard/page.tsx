@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/feedback';
 import { PageHeader } from '@/components/layout';
 import { MetricCard, Panel, SplitBar } from '@/components/ui';
 import { analyticsApi, projectsApi } from '@/lib/api';
+import { ANALYTICS_WINDOW_LABEL, ANALYTICS_WINDOW_PHRASE } from '@/lib/analytics-window';
 import { formatCount, formatPercent } from '@/lib/format';
 import type { AnalyticsOverview, ProjectSummary } from '@/lib/types';
 
@@ -68,7 +69,7 @@ export default function DashboardOverviewPage() {
     <PageHeader
       eyebrow="Overview"
       title="Every project you operate"
-      description="Traffic and enforcement across the projects you can see."
+      description={`Traffic and enforcement across the projects you can see, over ${ANALYTICS_WINDOW_PHRASE}.`}
       actions={
         <Link href="/projects" className="btn-secondary">
           Manage projects
@@ -139,19 +140,19 @@ export default function DashboardOverviewPage() {
         <MetricCard
           label="Requests"
           value={formatCount(totals.total)}
-          hint="Across all projects"
+          hint={`${ANALYTICS_WINDOW_LABEL}, all projects`}
         />
         <MetricCard
           label="Blocked"
           value={formatCount(totals.blocked)}
           tone="danger"
-          hint={`${formatPercent(blockRate)} of all requests`}
+          hint={`${formatPercent(blockRate)} of requests`}
         />
         <MetricCard
           label="Allowed"
           value={formatCount(totals.allowed)}
           tone="success"
-          hint={`${formatPercent(100 - blockRate)} of all requests`}
+          hint={`${formatPercent(100 - blockRate)} of requests`}
         />
       </div>
 
@@ -165,6 +166,7 @@ export default function DashboardOverviewPage() {
           <h2 className="mt-1 text-lg font-semibold text-slate-900">
             Traffic by project
           </h2>
+          <p className="mt-1 text-sm text-slate-500">{ANALYTICS_WINDOW_LABEL}</p>
         </div>
 
         <div className="overflow-x-auto">
