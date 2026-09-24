@@ -23,10 +23,11 @@ what the server does today.
 
 ### Status code rules
 
-There is not a single `@HttpCode()` decorator in the codebase (verified by grep), so
-NestJS defaults apply:
+NestJS defaults apply except where a handler sets `@HttpCode(200)`:
 
-- `POST` → **201 Created**, including read-only checks like `POST /gateway/check`.
+- `POST` → **201 Created** for creates.
+- `POST /gateway/check`, `POST /gateway/demo-check`, `POST /rules/simulate` → **200 OK**
+  (read-only). The two gateway routes answer **429** when the decision is `allowed: false`.
 - `GET` / `PATCH` / `DELETE` → **200 OK**.
 
 ### Error taxonomy
@@ -129,22 +130,31 @@ Request — `DemoCheckDto` (`gateway/dto/demo-check.dto.ts`):
 }
 ```
 
-Response (**201**), a different shape from `/check` — milliseconds, not seconds
-(`gateway.controller.ts:38-46`):
+Response **200** when allowed, in seconds like `/check`:
 
 ```jsonc
 {
-  "allowed": false,
+  "allowed": true,
   "algorithm": "token_bucket",
   "limit": 5,
-  "remaining": 0,
-  "resetInMs": 2000,        // retryAfter*1000 when retryAfter > 0, else 0
-  "retryAfterMs": 2000,     // null when allowed
+  "remaining": 4,
+  "retryAfter": 0,
   "timestamp": "2026-08-27T10:00:00.000Z"
 }
 ```
 
-Counter key is `demo:{identifier}:{algorithm}` — global, caller-supplied, not IP-scoped.
+**429** when blocked, with `Retry-After` set from the body:
+
+```jsonc
+{ "allowed": false, "reason": "RATE_LIMIT_EXCEEDED", "algorithm": "token_bucket",
+  "limit": 5, "remaining": 0, "retryAfter": 2 }
+```
+
+Counter key is `demo:{identifier}:{algorithm}` — global, caller-supplied. The route is
+also throttled to 30 requests a minute per client IP (`DemoThrottlerGuard`, the `demo`
+budget); a
+throttled call gets 429 with the standard `{success:false,error}` envelope and no
+`allowed` field, before any counter is touched.
 
 Errors: 400 (bad enum / identifier charset / unknown property), 500 on Redis failure.
 
@@ -255,7 +265,7 @@ revoke responses still carry it — see GAP-3.
 |---|---|---|
 | `POST /` | 201 | WRITE |
 | `GET /` | 200 | READ |
-| `POST /simulate` | 201 | WRITE |
+| `POST /simulate` | 200 | WRITE |
 | `PATCH /:ruleId` | 200 | WRITE |
 | `DELETE /:ruleId` | 200 | WRITE |
 
@@ -453,13 +463,20 @@ Token-bucket detail worth knowing: capacity **is** `rule.limit` and refill is
 
 ## Q2: Which headers go out on a 429?
 
-**The RLaaS API never emits a 429 and never emits a single rate-limit header.**
-`grep -rn "X-RateLimit|Retry-After|429" apps/backend/src` returns zero matches.
-`POST /gateway/check` answers **201** whether the verdict is allow or block; the verdict
-lives in the JSON `allowed` field.
+`POST /gateway/check` answers **200** when allowed and **429** when blocked. The 429 body
+is the full decision (not the error envelope), and `HttpExceptionFilter` sets
+`Retry-After` (when `retryAfter > 0`), `X-RateLimit-Limit`/`-Remaining`/`-Reset` and the
+unprefixed `RateLimit-*` pair from it. An unknown or revoked key is also a 429 with
+`retryAfter: 0` (see the characterization `KNOWN-ODD` index).
 
-429 exists only in the Express SDK, which converts the JSON verdict into an HTTP
-response (`packages/express-sdk/src/index.ts:94-107`):
+`/gateway/check` has **no built-in per-IP throttle**; the project's configured rules are
+its only traffic control. The SDK calls it from the customer's server, so an IP ceiling
+would cap a customer's whole traffic. Every 429 from `/check` is therefore a rule
+decision with `allowed: false`. (`/gateway/demo-check` alone carries a per-IP budget;
+its throttled 429 has the error envelope and no `allowed` field.)
+
+The Express SDK treats a 429 carrying `allowed: false` as a decision and any other
+non-2xx as a failure (503 `RLAAS_UNAVAILABLE`), then answers its own caller with:
 
 | Header | Allowed path (`:88-90`) | Blocked path / 429 (`:95-98`) |
 |---|---|---|
@@ -584,13 +601,16 @@ when `NODE_ENV=production` (`auth.service.ts:99-146`).
 obtain the code at all. The frontend at `apps/frontend/app/forgot-password/page.tsx:36`
 still reads `data.resetCode` and now displays an empty box.
 
-### GAP-5 — Nothing rate-limits the rate limiter
+### GAP-5 — Nothing rate-limits the rate limiter (resolved, except by design on `/check`)
 
-No `ThrottlerModule`, no guard, no per-IP protection on `/auth/login`,
-`/auth/forgot-password`, `/gateway/check`, or `/gateway/demo-check`. Login accepts
-unlimited password attempts (bcrypt cost 8, `auth.service.ts:33`), and the public
-`demo-check` counter is keyed on a caller-supplied identifier (`gateway.controller.ts:28`)
-so anyone can exhaust anyone else's demo quota.
+Originally: no `ThrottlerModule`, no guard, no per-IP protection on `/auth/login`,
+`/auth/forgot-password`, `/gateway/check`, or `/gateway/demo-check`.
+
+Now: the auth routes are throttled per IP (`AuthThrottlerGuard`, the `auth` budget) and
+`/gateway/demo-check` to 30 a minute per IP (`DemoThrottlerGuard`, the `demo` budget).
+`/gateway/check` is intentionally left without an IP throttle: it requires an API key,
+and its traffic control is the project's own rules. The demo counter is still keyed on
+a caller-supplied identifier, so one caller can still exhaust another's demo quota.
 
 ### GAP-6 — An unhandled rejection is reachable from a public endpoint
 
@@ -683,12 +703,11 @@ while the payload's `sample` names one endpoint/rule/IP (`:216-222`). An alert t
 as "this endpoint is under attack" is really "this project crossed N blocks". No retry
 and no dead-letter on delivery failure (`:249-254`).
 
-### GAP-17 — `POST /gateway/check` returns 201 Created
+### GAP-17 — `POST /gateway/check` returned 201 Created (resolved)
 
-No `@HttpCode()` exists in the codebase, so the hottest, most read-only route in the
-product answers `201` (`main.ts` defaults + `gateway.controller.ts:19-23`). Harmless for
-the SDK, which only checks `response.ok`, but wrong for anything doing status-based
-routing.
+Resolved in `741ea42`: `/check` answers 200 when allowed and 429 when blocked. The first
+version broke the SDK, which only checked `response.ok` and turned every block into a
+503; the SDK now reads a 429 with a decision body as a decision.
 
 ### GAP-18 — `checkProjectRequest` is dead code
 
@@ -724,8 +743,6 @@ relied on the fallback must set it to the same value as `JWT_SECRET`.
 - `retryAfter` units differ by algorithm: fixed window returns the raw Redis `TTL`
   (whole seconds), the others `Math.ceil(ms/1000)`; a token bucket refilling faster than
   1/s yields `retryAfter: 0`, which the SDK forwards as `Retry-After: 0`.
-- `/gateway/demo-check` speaks milliseconds (`resetInMs`, `retryAfterMs`) while
-  `/gateway/check` speaks seconds (`retryAfter`) — two response shapes on one controller.
 - Success responses are unwrapped, errors are wrapped in `{success,error}`, the SDK's 429
   is a third shape, and `shared-types` describes a fourth. Four conventions in one
   product.

@@ -41,6 +41,13 @@ export class RulesService {
     private readonly configService: ConfigService,
   ) {}
 
+  /**
+   * One Redis hash per project; each field is one page of the list (sort,
+   * limit, filters, cursor). Keeping every variant under one key is what lets
+   * bustRulesCache drop all of them with a single DEL. When each page had its
+   * own key, the bust deleted a name nothing read any more and the dashboard
+   * showed a stale list after every create/update/delete until the TTL ran out.
+   */
   private rulesListKey(projectId: string) {
     return `cache:rules:project:${projectId}`;
   }
@@ -111,22 +118,21 @@ export class RulesService {
     const limit = query.limit ?? 50;
     const sort = query.sort ?? 'priority';
 
-    // Sort-aware cache key. Two clients hitting the same project with the same
-    // filters share an entry; a different sort or filter busts to Postgres.
-    const cacheKeyParts = [
-      'cache:rules:project',
-      projectId,
+    // Sort-aware page field inside the project's hash. Two clients asking for
+    // the same page share an entry; a different sort or filter misses to
+    // Postgres. See rulesListKey for why this is a field and not its own key.
+    const key = this.rulesListKey(projectId);
+    const field = [
       sort,
       String(limit),
       query.scope ?? '*',
       query.algorithm ?? '*',
       query.isActive === undefined ? '*' : String(query.isActive),
       query.cursor ?? 'first',
-    ];
-    const key = cacheKeyParts.join(':');
+    ].join(':');
 
     try {
-      const cached = await this.redisService.getClient().get(key);
+      const cached = await this.redisService.getClient().hget(key, field);
       if (cached) return JSON.parse(cached);
     } catch { /* fall through */ }
 
@@ -204,9 +210,14 @@ export class RulesService {
     };
 
     try {
+      // The TTL covers the whole hash and is refreshed on every page write. It
+      // is only a backstop: correctness comes from bustRulesCache on writes.
       await this.redisService
         .getClient()
-        .setex(key, RULES_LIST_TTL, JSON.stringify(result));
+        .multi()
+        .hset(key, field, JSON.stringify(result))
+        .expire(key, RULES_LIST_TTL)
+        .exec();
     } catch { /* non-critical */ }
 
     return result;

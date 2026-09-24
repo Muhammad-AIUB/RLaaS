@@ -42,8 +42,9 @@ export class ListRulesQueryDto {
   cursor?: string;
 
   /**
-   * 'priority' (default) sorts by priority asc then createdAt desc — matches
-   * the gateway's evaluation order. 'recent' sorts by createdAt desc.
+   * 'priority' (default) sorts by priority asc, then createdAt asc, then id —
+   * the same tie-break as the gateway's active-rules query, so the list reads
+   * in evaluation order. 'recent' sorts by createdAt desc.
    */
   @ApiPropertyOptional({ enum: ['priority', 'recent'] })
   @IsOptional()

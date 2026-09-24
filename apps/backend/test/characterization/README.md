@@ -70,12 +70,40 @@ Behaviour recorded here that looks wrong, worst first.
 | `gateway-check` › rule scoping | A `GLOBAL` rule still composes its Redis key from method + endpoint + tier, so "N per minute globally" is really N per minute per endpoint per method per tier. |
 | `gateway-check` › tier bucket | `userTier` is read from the request body, so the caller chooses its own bucket, and with a `USER_TIER` rule its own limit. |
 | `gateway-check` › deferred writes | The decision is returned before the request-log write completes. Deliberate — but a failed write is only logged, so the row is lost silently. (Its rejection is caught as of C4; it used to be uncaught.) |
-| `gateway-check` › unknown key | Returns `201` with a decision body rather than `401`/`403`, and reports `algorithm: fixed_window` although no algorithm ran. |
+| `gateway-check` › unknown key | Returns `429 Too Many Requests` with a decision body rather than `401`/`403` (it was `201` before the gateway began answering 429 for every `allowed: false`), so a client backs off from a credential problem instead of surfacing it. Reports `algorithm: fixed_window` although no algorithm ran. |
 | `gateway-check` › `method` validation | `method` is only `@IsString()`/`@MaxLength(16)` but is cast to the Prisma `HttpMethod` enum when the log row is written. |
-| `demo-check` › identifier | Unauthenticated callers mint one Redis key per identifier string, with no cap. |
-| `demo-check` › `resetInMs` | Always `0` while the caller is allowed, so a client cannot show a countdown until it has already been blocked. |
+| `demo-check` › identifier | Unauthenticated callers mint one Redis key per identifier string. The per-IP throttle (30/min) now bounds the rate per address; the key count per address is still caller-chosen. |
 | `rules` › `simulate` | Every call embeds a fresh `randomUUID` in the key, so two identical simulations never share a counter and each leaves a key behind for the whole window. |
-| All POST endpoints | Return `201 Created` for read-only decisions, because Nest's default POST status is never overridden. |
+
+### Resolved in `741ea42` (gateway 429, keyset pagination)
+
+Removed from the index above; the specs keep a `WAS KNOWN-ODD, NOW FIXED` note
+next to the updated assertion.
+
+- **Read-only POSTs returned `201`.** `/gateway/check`, `/gateway/demo-check`
+  and `/rules/simulate` now answer `200`; a gateway block is `429` whose body is
+  still the full decision, with `Retry-After`. Creating POSTs keep `201`.
+- **`demo-check` › `resetInMs` was 0 while allowed.** The field is gone; the
+  envelope matches `/check` (`retryAfter` in seconds, set on a block).
+
+Consumers that had to move with it, fixed alongside: the express SDK treated
+every non-2xx as a gateway failure and turned each block into a `503
+RLAAS_UNAVAILABLE` (`concurrency-leak` › express-sdk); the dashboard read the
+rules list as an array (it is now `{ data, nextCursor }`); the rules-list cache
+moved to per-page keys that `bustRulesCache` no longer reached, so writes left
+a stale list for up to 60s (`rules` › create drops the cache).
+
+The same commit declared per-IP `@Throttle` budgets on both gateway routes but
+no guard to enforce them. Resolved deliberately, not symmetrically:
+
+- **`/gateway/check` has no built-in IP throttle.** Its traffic control is the
+  project's own rules. The SDK calls it from the customer's server, so a per-IP
+  cap (the declared 200/s) would throttle a whole customer, not an abuser
+  (`gateway-check` › has no built-in per-IP ceiling).
+- **`/gateway/demo-check` is throttled to 30 a minute per IP**
+  (`DemoThrottlerGuard`, the `demo` budget). It is unauthenticated and needs
+  abuse protection that no customer rule provides (`demo-check` › 30 probes a
+  minute).
 
 ## Files
 

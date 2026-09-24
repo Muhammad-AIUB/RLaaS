@@ -3,6 +3,11 @@ import { check, sleep } from 'k6';
 import { Counter, Rate, Trend } from 'k6/metrics';
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
 
+// A rule block is a 429 with the decision body, not a failed request. Without
+// this, k6 counts every 4xx in http_req_failed and the blocked scenario trips
+// the `rate<0.01` threshold by design.
+http.setResponseCallback(http.expectedStatuses(200, 429));
+
 const gatewayLatency = new Trend('gateway_check_latency_ms');
 const allowedRate = new Rate('gateway_allowed_rate');
 const blockedRate = new Rate('gateway_blocked_rate');
@@ -114,7 +119,7 @@ export function blockedScenario() {
 
   const isBlocked =
     check(response, {
-      'blocked scenario returns 200': (res) => res.status === 200,
+      'blocked scenario returns 429': (res) => res.status === 429,
       'blocked scenario response.allowed=false': (res) =>
         res.json('allowed') === false,
       'blocked scenario reason matches': (res) =>

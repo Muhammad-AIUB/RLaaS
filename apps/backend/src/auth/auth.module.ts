@@ -33,10 +33,11 @@ import { JwtStrategy } from './strategies/jwt.strategy';
      */
     ThrottlerModule.forRoot([
       { name: 'auth', ttl: 60_000, limit: 10 },
-      // Gateway endpoint: 200/s per IP. Generous for a real client, useless
-      // for an attacker filling Redis with demo keys or burning the
-      // request-log table.
-      { name: 'gateway', ttl: 1_000, limit: 200 },
+      // POST /gateway/demo-check only (DemoThrottlerGuard): 30/min per IP. The
+      // demo is unauthenticated and mints a Redis key per identifier, so it
+      // needs a budget of its own. /gateway/check has none on purpose; the
+      // project's configured rules are its traffic control.
+      { name: 'demo', ttl: 60_000, limit: 30 },
     ]),
     JwtModule.registerAsync({
       inject: [ConfigService],

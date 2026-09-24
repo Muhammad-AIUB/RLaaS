@@ -40,6 +40,12 @@ export interface CharacterizationContext {
    * beforeEach alongside the Redis flush.
    */
   resetThrottle: () => void;
+  /**
+   * How many trackers the throttler currently holds. Zero after a request
+   * means no ThrottlerGuard ran on that route at all — a deterministic way to
+   * assert a route is unthrottled without racing a clock with a burst.
+   */
+  throttleEntries: () => number;
   close: () => Promise<void>;
 }
 
@@ -76,10 +82,16 @@ export async function createCharacterizationApp(): Promise<CharacterizationConte
   const jwt = app.get(JwtService);
   // `_storage` is a Map, not a plain object. Treating it as a record silently
   // does nothing, and the throttle then leaks a spent budget between tests.
-  const throttlerStorage = app.get<{ _storage?: Map<string, unknown> }>(
-    ThrottlerStorage,
-    { strict: false },
-  );
+  //
+  // `timeoutIds` must be cleared with it. Every hit schedules a setTimeout(ttl)
+  // that later decrements `_storage.get(key).totalHits`; clearing the map and
+  // leaving the timers armed makes each one throw "Cannot destructure property
+  // 'totalHits'" when it fires into a later test. With only the 60s `auth`
+  // throttler the timers outlived the run; a 1s throttler made it fire.
+  const throttlerStorage = app.get<{
+    _storage?: Map<string, unknown>;
+    timeoutIds?: Map<string, ReturnType<typeof setTimeout>[]>;
+  }>(ThrottlerStorage, { strict: false });
 
   return {
     app,
@@ -87,9 +99,12 @@ export async function createCharacterizationApp(): Promise<CharacterizationConte
     redis,
     jwt,
     resetThrottle: () => {
-      // Reaching into `_storage` on purpose: the interface exposes no clear().
+      // Reaching into internals on purpose: the interface exposes no clear().
+      throttlerStorage?.timeoutIds?.forEach((ids) => ids.forEach(clearTimeout));
+      throttlerStorage?.timeoutIds?.clear();
       throttlerStorage?._storage?.clear();
     },
+    throttleEntries: () => throttlerStorage?._storage?.size ?? 0,
     close: async () => {
       await app.close();
     },

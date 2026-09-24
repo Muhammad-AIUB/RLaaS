@@ -209,12 +209,38 @@ describe('/api/v1/projects/:projectId/rules', () => {
 
       const response = await asUser(ownerToken).get(base);
 
+      // The list is keyset-paginated: `{ data, nextCursor }`, not a bare array.
+      // The dashboard's rulesApi.list follows nextCursor to build the full list.
       expect(response.status).toBe(200);
-      expect(response.body.map((rule: { name: string }) => rule.name)).toEqual([
+      expect(response.body.nextCursor).toBeNull();
+      expect(response.body.data.map((rule: { name: string }) => rule.name)).toEqual([
         'First',
         'Second',
         'Third',
       ]);
+    });
+
+    it('pages with an opaque cursor in evaluation order', async () => {
+      seedRule({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1', priority: 30, name: 'Third' });
+      seedRule({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2', priority: 10, name: 'First' });
+      seedRule({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3', priority: 20, name: 'Second' });
+
+      const first = await asUser(ownerToken).get(`${base}?limit=2`);
+
+      expect(first.status).toBe(200);
+      expect(first.body.data.map((rule: { name: string }) => rule.name)).toEqual([
+        'First',
+        'Second',
+      ]);
+      expect(typeof first.body.nextCursor).toBe('string');
+
+      const second = await asUser(ownerToken).get(
+        `${base}?limit=2&cursor=${encodeURIComponent(first.body.nextCursor)}`,
+      );
+
+      expect(second.status).toBe(200);
+      expect(second.body.data.map((rule: { name: string }) => rule.name)).toEqual(['Third']);
+      expect(second.body.nextCursor).toBeNull();
     });
 
     it('refuses a NON-MEMBER even once a member has warmed the cache', async () => {
@@ -256,7 +282,7 @@ describe('/api/v1/projects/:projectId/rules', () => {
       const response = await asUser(viewerToken).get(base);
 
       expect(response.status).toBe(200);
-      expect(response.body).toHaveLength(1);
+      expect(response.body.data).toHaveLength(1);
     });
   });
 
@@ -345,7 +371,9 @@ describe('/api/v1/projects/:projectId/rules', () => {
     it('consumes an isolated counter and returns the last decision', async () => {
       const response = await asUser(ownerToken).post(`${base}/simulate`, simulationBody());
 
-      expect(response.status).toBe(201);
+      // WAS KNOWN-ODD, NOW FIXED: 201 Created for a read-only computation.
+      // /simulate now sets @HttpCode(200).
+      expect(response.status).toBe(200);
       expect(response.body).toMatchObject({
         matches: true,
         simulatedRequests: 3,
@@ -388,7 +416,7 @@ describe('/api/v1/projects/:projectId/rules', () => {
         },
       });
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(200);
       expect(response.body).toEqual({
         matches: false,
         reason: 'RULE_DOES_NOT_MATCH_REQUEST',

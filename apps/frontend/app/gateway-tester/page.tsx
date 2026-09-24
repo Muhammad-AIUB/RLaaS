@@ -79,19 +79,32 @@ export default function GatewayTesterPage() {
   }
 
   async function fire() {
+    // 200 → `{ allowed: true, remaining, ... }`; 429 → `{ allowed: false,
+    // remaining: 0, retryAfter }` with `retryAfter` in seconds. A 429 with no
+    // `allowed` field is the gateway's own per-IP throttle (30/min on this
+    // demo) refusing to run the check at all; it still counts as blocked.
     const res = await fetch('/api/demo-check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ algorithm: algo, identifier: sessionKey }),
     })
-      .then((r) => r.json())
+      .then(async (r) => ({ status: r.status, body: await r.json() }))
       .catch(() => null);
 
     if (!res) return;
 
-    setRemaining(res.remaining);
-    if (res.retryAfterMs > 0) {
-      startCountdown(Math.ceil(res.retryAfterMs / 1000));
+    const isDecision = typeof res.body?.allowed === 'boolean';
+    if (!isDecision && res.status !== 429) return;
+
+    const allowed = isDecision ? Boolean(res.body.allowed) : false;
+    const remainingNow: number = isDecision ? res.body.remaining : 0;
+    const retryAfterSeconds: number =
+      isDecision && typeof res.body.retryAfter === 'number' ? res.body.retryAfter : 0;
+    const retryAfterMs = allowed ? null : retryAfterSeconds * 1000 || null;
+
+    setRemaining(remainingNow);
+    if (retryAfterMs) {
+      startCountdown(Math.ceil(retryAfterMs / 1000));
     }
 
     setLogs((prev) =>
@@ -99,15 +112,15 @@ export default function GatewayTesterPage() {
         {
           id: ++idRef.current,
           time: new Date().toLocaleTimeString('en-US', { hour12: false }),
-          allowed: res.allowed,
-          remaining: res.remaining,
-          retryAfterMs: res.retryAfterMs,
+          allowed,
+          remaining: remainingNow,
+          retryAfterMs,
         },
         ...prev,
       ].slice(0, 25),
     );
 
-    if (!res.allowed) {
+    if (!allowed) {
       setFlashBlocked(true);
       setTimeout(() => setFlashBlocked(false), 1500);
     }

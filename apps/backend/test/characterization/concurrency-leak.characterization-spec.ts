@@ -241,18 +241,22 @@ describe('limit leakage under concurrency', () => {
       expect(remainings).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     });
 
-    it('answers blocked requests with 201, never 429', async () => {
+    it('answers allowed requests with 200 and blocked ones with 429', async () => {
       seedRule(RuleAlgorithm.FIXED_WINDOW);
 
       const responses = await burst('/api/products');
       const blocked = responses.filter((response) => response.body.allowed === false);
 
-      // KNOWN-ODD: the gateway is an advice endpoint, not a proxy — a rejected
-      // request is still a successful HTTP call, and Nest's default POST status
-      // is never overridden. There is no 429 anywhere in the server; the SDK is
-      // what turns `allowed: false` into one (see the next block).
-      expect(responses.every((response) => response.status === 201)).toBe(true);
-      expect(responses.some((response) => response.status === 429)).toBe(false);
+      // WAS KNOWN-ODD, NOW FIXED: every answer used to be 201, a block included.
+      // The status now matches the decision: 200 for allowed, 429 for blocked,
+      // and the 429 body is still the full decision so the SDK can read it.
+      expect(responses.filter((response) => response.status === 200)).toHaveLength(LIMIT);
+      expect(responses.filter((response) => response.status === 429)).toHaveLength(
+        BURST - LIMIT,
+      );
+      expect(
+        blocked.every((response) => response.status === 429),
+      ).toBe(true);
       expect(blocked[0].body).toMatchObject({
         allowed: false,
         reason: 'RATE_LIMIT_EXCEEDED',

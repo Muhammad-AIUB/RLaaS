@@ -124,7 +124,16 @@ export function createRlaasMiddleware(
 
       const result = (await gatewayResponse.json()) as GatewayCheckResponse | RlaasErrorResponse;
 
-      if (!gatewayResponse.ok) {
+      // The gateway answers 200 when a request is allowed and 429 when it is
+      // blocked, and both carry the decision body. A 429 is therefore a
+      // decision, not a failure: treating every non-2xx as an error turned each
+      // block into a 503 RLAAS_UNAVAILABLE and fired onError on every one.
+      // A 429 WITHOUT a decision body is the gateway's own per-IP throttle
+      // refusing to answer, and stays an error like any other non-2xx.
+      const isDecision =
+        'allowed' in result && typeof result.allowed === 'boolean';
+
+      if (!gatewayResponse.ok && !(gatewayResponse.status === 429 && isDecision)) {
         throw new Error(
           'message' in result ? result.message : 'Gateway request failed',
         );

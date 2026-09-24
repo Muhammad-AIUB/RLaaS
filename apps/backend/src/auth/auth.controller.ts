@@ -1,6 +1,6 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { Idempotent } from '../common/decorators/idempotent.decorator';
 import { RequestMeta } from '../common/decorators/request-metadata.decorator';
 import type { RequestMetadata } from '../common/interfaces/request-metadata.interface';
@@ -17,7 +17,12 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
  * Every route here is unauthenticated by design, so the per-IP throttle is the
  * only thing standing between an attacker and unlimited attempts. Applied at
  * the controller so a route added later inherits it instead of being forgotten.
+ *
+ * ThrottlerGuard enforces every throttler named in ThrottlerModule.forRoot, so
+ * without the skip these routes would also spend the demo route's 30/min
+ * budget. That budget belongs to /gateway/demo-check only.
  */
+@SkipThrottle({ demo: true })
 @UseGuards(AuthThrottlerGuard)
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {

@@ -96,14 +96,14 @@ describe('POST /api/v1/gateway/check', () => {
   });
 
   describe('response envelope', () => {
-    it('returns 201 with the default-rule decision when the project has no rules', async () => {
+    it('returns 200 with the default-rule decision when the project has no rules', async () => {
       seedApiKey();
 
       const response = await post(validRequest());
 
-      // KNOWN-ODD: a rate-limit *decision* is returned as 201 Created. Nest's
-      // default POST status is never overridden with @HttpCode(200).
-      expect(response.status).toBe(201);
+      // WAS KNOWN-ODD, NOW FIXED: a rate-limit *decision* was returned as 201
+      // Created, Nest's default POST status. /check now sets @HttpCode(200).
+      expect(response.status).toBe(200);
 
       // Falls back to buildDefaultRule() from RATE_LIMIT_DEFAULT_* env values.
       expect(response.body).toEqual({
@@ -141,7 +141,12 @@ describe('POST /api/v1/gateway/check', () => {
       expect(first.body).toMatchObject({ allowed: true, limit: 2, remaining: 1 });
       expect(second.body).toMatchObject({ allowed: true, limit: 2, remaining: 0 });
 
-      expect(third.status).toBe(201);
+      // A block is a 429 whose body is still the full decision (not the
+      // standard error envelope), so a client can read reason and retryAfter.
+      expect(first.status).toBe(200);
+      expect(second.status).toBe(200);
+      expect(third.status).toBe(429);
+      expect(third.headers['retry-after']).toBe(String(third.body.retryAfter));
       expect(third.body).toMatchObject({
         allowed: false,
         reason: 'RATE_LIMIT_EXCEEDED',
@@ -156,6 +161,32 @@ describe('POST /api/v1/gateway/check', () => {
       // retryAfter is the live Redis TTL, in whole seconds.
       expect(third.body.retryAfter).toBeGreaterThan(55);
       expect(third.body.retryAfter).toBeLessThanOrEqual(60);
+    });
+
+    it('has no built-in per-IP ceiling: only the project rule decides', async () => {
+      seedApiKey();
+      seedRule();
+      ctx.resetThrottle();
+
+      // The SDK calls /check from the customer's server, so a per-IP cap here
+      // would throttle a customer's whole traffic. 741ea42 briefly declared one
+      // (200/s); it was removed on purpose. Asserting on the throttler's own
+      // storage proves no ThrottlerGuard ran, without racing a clock with a
+      // 200+ request burst.
+      const allowed = await post(validRequest());
+      await post(validRequest());
+      const blocked = await post(validRequest());
+
+      expect(allowed.status).toBe(200);
+      expect(blocked.status).toBe(429);
+      expect(blocked.body.allowed).toBe(false); // the rule's decision, not a throttler envelope
+      expect(ctx.throttleEntries()).toBe(0);
+
+      // Control: the same harness does see the throttler on demo-check.
+      await request(ctx.app.getHttpServer())
+        .post('/api/v1/gateway/demo-check')
+        .send({ algorithm: 'fixed_window', identifier: 'throttle_control' });
+      expect(ctx.throttleEntries()).toBe(1);
     });
   });
 
@@ -260,13 +291,17 @@ describe('POST /api/v1/gateway/check', () => {
   });
 
   describe('API key validation', () => {
-    it('answers 201 with a rejection body for an unknown key', async () => {
+    it('answers 429 with a rejection body for an unknown key', async () => {
       const response = await post(validRequest({ apiKey: 'rlaas_live_not_a_key' }));
 
-      // KNOWN-ODD: an unauthenticated caller gets 201 + a decision body rather
-      // than 401/403, and `algorithm` is hardcoded to fixed_window even though
-      // no algorithm ran.
-      expect(response.status).toBe(201);
+      // KNOWN-ODD: an unauthenticated caller gets 429 Too Many Requests + a
+      // decision body rather than 401/403. It used to be 201; the gateway now
+      // answers 429 for every `allowed: false`, a bad credential included, so
+      // a client backs off from a misconfiguration it should instead fix, with
+      // no Retry-After because retryAfter is 0. `algorithm` is still hardcoded
+      // to fixed_window even though no algorithm ran.
+      expect(response.status).toBe(429);
+      expect(response.headers['retry-after']).toBeUndefined();
       expect(response.body).toEqual({
         allowed: false,
         reason: 'API_KEY_INVALID',
@@ -418,7 +453,7 @@ describe('POST /api/v1/gateway/check', () => {
 
       const response = await post(validRequest({ method: 'get' }));
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(200);
       expect(response.body.allowed).toBe(true);
     });
   });
@@ -448,7 +483,7 @@ describe('POST /api/v1/gateway/check', () => {
         // must not pay for the log write. Its rejection is caught and logged
         // (C4); the row is still lost, which is what the KNOWN-ODD below the
         // `method` test records.
-        expect(response.status).toBe(201);
+        expect(response.status).toBe(200);
         expect(response.body.allowed).toBe(true);
         expect(elapsedMs).toBeLessThan(1_000);
         expect(ctx.prisma.requestLogs).toHaveLength(0);

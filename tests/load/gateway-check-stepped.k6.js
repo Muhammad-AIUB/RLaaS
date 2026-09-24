@@ -3,12 +3,17 @@ import exec from 'k6/execution';
 import { Counter, Trend } from 'k6/metrics';
 import { textSummary } from 'https://jslib.k6.io/k6-summary/0.1.0/index.js';
 
+// 429 is the rule's block decision, not a failure; keep it out of
+// http_req_failed so that metric only reports real errors.
+http.setResponseCallback(http.expectedStatuses(200, 429));
+
 /**
  * Stepped load profile for POST /api/v1/gateway/check.
  *
  * Differences from gateway-check.k6.js, all deliberate:
- *  - accepts 201 (the API returns 201 for POST; the older script asserts 200,
- *    which is why its check pass-rate reads 16% while http_req_failed is 0%)
+ *  - reads the verdict from the body on both 200 (allowed) and 429 (blocked).
+ *    /gateway/check has no built-in IP throttle, so every 429 is the project
+ *    rule's decision; a response without an `allowed` field is unexpected
  *  - closed-loop, no sleep, so "N VUs" means N concurrent in-flight requests
  *  - one constant-vus scenario per step, so each load level gets its own
  *    percentile bucket instead of being averaged across the ramp
@@ -109,9 +114,9 @@ export function checkScenario() {
     trend.add(duration);
   }
 
-  // 201 is the real success status for this endpoint. 200 accepted so the
-  // script keeps working if that is ever corrected.
-  const ok = response.status === 201 || response.status === 200;
+  // 200 = allowed, 429 = blocked by the project's rule; both carry the
+  // decision body. Anything else counts as unexpected below.
+  const ok = response.status === 200 || response.status === 429;
   let verdict = null;
 
   if (ok) {

@@ -61,6 +61,42 @@ function compare(a: unknown, b: unknown): number {
   return String(a).localeCompare(String(b));
 }
 
+/**
+ * The subset of Prisma's `where` that keyset pagination needs: field equality,
+ * `{ gt | lt | in }`, and nested `OR` / `AND`. Anything else throws, for the
+ * same reason as `unsupported`: a filter the double silently ignored would
+ * return every row and make a broken cursor look like a working one.
+ */
+function matchesWhere(model: string, row: Row, where: Row): boolean {
+  return Object.entries(where).every(([field, condition]) => {
+    if (condition === undefined) return true;
+    if (field === 'OR') {
+      return (condition as Row[]).some((branch) => matchesWhere(model, row, branch));
+    }
+    if (field === 'AND') {
+      return (condition as Row[]).every((branch) => matchesWhere(model, row, branch));
+    }
+    const value = row[field];
+    if (condition instanceof Date || condition === null || typeof condition !== 'object') {
+      return condition instanceof Date
+        ? value instanceof Date && value.getTime() === condition.getTime()
+        : value === condition;
+    }
+    return Object.entries(condition as Row).every(([op, operand]) => {
+      switch (op) {
+        case 'gt':
+          return compare(value, operand) > 0;
+        case 'lt':
+          return compare(value, operand) < 0;
+        case 'in':
+          return (operand as unknown[]).includes(value);
+        default:
+          return unsupported(model, 'findMany', { where: { [field]: condition } });
+      }
+    });
+  });
+}
+
 function sortRows(rows: Row[], orderBy?: Row | Row[]): Row[] {
   if (!orderBy) return rows;
   const clauses = Array.isArray(orderBy) ? orderBy : [orderBy];
@@ -214,14 +250,16 @@ export class FakePrisma {
 
   /* ---- rate_limit_rules ---- */
   rateLimitRule = {
+    // Covers both call sites: the gateway's active-rules load
+    // ({ projectId, isActive }) and the keyset-paginated list (filters, a
+    // cursor as nested OR/AND with gt, and take = limit + 1).
     findMany: async (args: Row = {}): Promise<Row[]> => {
       const where = args.where ?? {};
-      const matched = this.rules.filter(
-        (row) =>
-          (where.projectId === undefined || row.projectId === where.projectId) &&
-          (where.isActive === undefined || row.isActive === where.isActive),
+      const matched = this.rules.filter((row) =>
+        matchesWhere('rateLimitRule', row, where),
       );
-      return sortRows(matched, args.orderBy);
+      const sorted = sortRows(matched, args.orderBy);
+      return args.take === undefined ? sorted : sorted.slice(0, args.take);
     },
 
     findFirst: async (args: Row): Promise<Row | null> => {

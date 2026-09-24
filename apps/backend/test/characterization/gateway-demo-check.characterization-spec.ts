@@ -32,24 +32,27 @@ describe('POST /api/v1/gateway/demo-check', () => {
   beforeEach(async () => {
     ctx.prisma.reset();
     await ctx.redis.flushdb();
+    // 30/min per IP on this route (DemoThrottlerGuard), and every test comes
+    // from 127.0.0.1, so a spent budget must not leak into the next test.
+    ctx.resetThrottle();
   });
 
-  it('answers 201 with the demo envelope and no authentication at all', async () => {
+  it('answers 200 with the demo envelope and no authentication at all', async () => {
     const response = await post({
       algorithm: 'fixed_window',
       identifier: 'demo_session_a',
     });
 
-    // KNOWN-ODD: 201 Created for a read-only rate-limit probe (Nest's default
-    // POST status is never overridden).
-    expect(response.status).toBe(201);
+    // WAS KNOWN-ODD, NOW FIXED: 201 Created for a read-only rate-limit probe.
+    // The route now sets @HttpCode(200), and the envelope matches /check's:
+    // `retryAfter` in seconds replaced `resetInMs` / `retryAfterMs`.
+    expect(response.status).toBe(200);
     expect(response.body).toEqual({
       allowed: true,
       algorithm: 'fixed_window',
       limit: 5,
       remaining: 4,
-      resetInMs: 0,
-      retryAfterMs: null,
+      retryAfter: 0,
       timestamp: expect.any(String),
     });
   });
@@ -76,7 +79,7 @@ describe('POST /api/v1/gateway/demo-check', () => {
     ]);
   });
 
-  it('reports resetInMs only once the caller is already blocked', async () => {
+  it('answers a block with 429, the decision body and Retry-After', async () => {
     const identifier = 'demo_session_c';
 
     for (let index = 0; index < 5; index += 1) {
@@ -85,13 +88,46 @@ describe('POST /api/v1/gateway/demo-check', () => {
 
     const blocked = await post({ algorithm: 'fixed_window', identifier });
 
-    // KNOWN-ODD: `resetInMs` is derived from `retryAfter`, which is 0 whenever
-    // the request is allowed. A client cannot show a countdown until it has
-    // already been rejected.
-    expect(blocked.body.allowed).toBe(false);
-    expect(blocked.body.resetInMs).toBeGreaterThan(0);
-    expect(blocked.body.resetInMs).toBeLessThanOrEqual(10_000);
-    expect(blocked.body.retryAfterMs).toBe(blocked.body.resetInMs);
+    // WAS KNOWN-ODD: `resetInMs` was always 0 while allowed, so a client could
+    // not show a countdown until it had been rejected. The field is gone; a
+    // block now carries `retryAfter` (seconds) in the body and the header, and
+    // an allowed answer still has no reset time (retryAfter: 0).
+    expect(blocked.status).toBe(429);
+    expect(blocked.body).toMatchObject({
+      allowed: false,
+      reason: 'RATE_LIMIT_EXCEEDED',
+      algorithm: 'fixed_window',
+      limit: 5,
+      remaining: 0,
+    });
+    expect(blocked.body.retryAfter).toBeGreaterThan(0);
+    expect(blocked.body.retryAfter).toBeLessThanOrEqual(10);
+    expect(blocked.headers['retry-after']).toBe(String(blocked.body.retryAfter));
+  });
+
+  it('throttles one IP to 30 probes a minute, before running the check', async () => {
+    const statuses: number[] = [];
+
+    // Fresh identifier each time, so the demo's own 5-per-10s limit never
+    // fires and every 429 here is the per-IP throttle.
+    for (let index = 0; index < 31; index += 1) {
+      const response = await post({
+        algorithm: 'fixed_window',
+        identifier: `demo_flood_${index}`,
+      });
+      statuses.push(response.status);
+    }
+
+    expect(statuses.slice(0, 30).every((status) => status === 200)).toBe(true);
+    expect(statuses[30]).toBe(429);
+
+    const throttled = await post({ algorithm: 'fixed_window', identifier: 'demo_flood_x' });
+    // The throttler answers before the handler runs: standard error envelope,
+    // no decision body, and no Redis key minted for the identifier.
+    expect(throttled.status).toBe(429);
+    expect(throttled.body.allowed).toBeUndefined();
+    expect(throttled.body.success).toBe(false);
+    expect(await ctx.redis.exists('demo:demo_flood_x:fixed_window')).toBe(0);
   });
 
   it('creates one unbounded Redis key per caller-supplied identifier', async () => {
@@ -102,8 +138,9 @@ describe('POST /api/v1/gateway/demo-check', () => {
     const keys = (await ctx.redis.keys('demo:*')).sort();
 
     // KNOWN-ODD: `identifier` comes straight from the request body on an
-    // unauthenticated endpoint, so any caller can mint unlimited Redis keys
-    // (and a fresh quota) just by changing the string.
+    // unauthenticated endpoint, so any caller can mint a Redis key (and a
+    // fresh quota) just by changing the string. The per-IP throttle now caps
+    // that at 30 keys a minute per address, not unlimited.
     expect(keys).toEqual([
       'demo:demo_one:fixed_window',
       'demo:demo_one:token_bucket',

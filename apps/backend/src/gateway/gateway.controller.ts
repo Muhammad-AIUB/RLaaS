@@ -5,9 +5,10 @@ import {
   HttpException,
   HttpStatus,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { Throttle, seconds } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AlgorithmRegistryService } from '../algorithms/algorithm-registry.service';
 import { RateLimitAlgorithm } from '../algorithms/algorithm.enum';
 import { Public } from '../auth/decorators/public.decorator';
@@ -15,6 +16,7 @@ import { GatewayCheckResult } from '../rate-limiter/interfaces/gateway-check-res
 import { RateLimiterService } from '../rate-limiter/rate-limiter.service';
 import { DemoCheckDto } from './dto/demo-check.dto';
 import { GatewayCheckDto } from './dto/gateway-check.dto';
+import { DemoThrottlerGuard } from './guards/demo-throttler.guard';
 
 const DEMO_LIMIT = 5;
 const DEMO_WINDOW_SECONDS = 10;
@@ -22,12 +24,16 @@ const DEMO_WINDOW_SECONDS = 10;
 /**
  * RLaaS's public endpoint. Returns HTTP 200 with `{ allowed: true, ... }` when
  * the request is permitted, HTTP 429 with `{ allowed: false, reason, ... }`
- * when it is not. The body always carries `limit`, `remaining`, `retryAfter`
- * so an SDK that ignores status codes keeps working.
+ * when it is not. The body always carries `limit`, `remaining`, `retryAfter`.
  *
- * Per-IP throttling is applied at the handler so the global throttler keys on
- * the trusted IP (not the API key id) — an attacker cannot rotate identifiers
- * to bypass the limit.
+ * A client must treat a 429 that carries `allowed: false` as a decision, not a
+ * failure. The express SDK did not, and turned every block into a 503; it now
+ * does (packages/express-sdk/src/index.ts).
+ *
+ * No built-in IP throttle on /check: its traffic control is the project's own
+ * rate-limit rules. Only /demo-check, which is unauthenticated, carries a
+ * per-IP budget (DemoThrottlerGuard, 30/min). A throttled demo request gets a
+ * 429 with the standard error envelope and no `allowed` field.
  */
 @Public()
 @ApiTags('gateway')
@@ -40,12 +46,6 @@ export class GatewayController {
 
   @Post('check')
   @HttpCode(HttpStatus.OK)
-  @Throttle({
-    gateway: {
-      ttl: seconds(1),
-      limit: 200,
-    },
-  })
   @ApiOperation({ summary: 'Check whether a request should be allowed' })
   async check(@Body() dto: GatewayCheckDto) {
     const result = await this.rateLimiterService.checkRequest(dto);
@@ -59,12 +59,8 @@ export class GatewayController {
 
   @Post('demo-check')
   @HttpCode(HttpStatus.OK)
-  @Throttle({
-    gateway: {
-      ttl: seconds(60),
-      limit: 30,
-    },
-  })
+  @UseGuards(DemoThrottlerGuard)
+  @SkipThrottle({ auth: true })
   @ApiOperation({ summary: 'Public demo rate limit check — no auth required' })
   async demoCheck(@Body() dto: DemoCheckDto) {
     const key = `demo:${dto.identifier}:${dto.algorithm}`;
