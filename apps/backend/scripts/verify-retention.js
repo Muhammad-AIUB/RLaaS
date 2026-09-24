@@ -117,10 +117,14 @@ async function main() {
           DELETE FROM "request_logs"
           WHERE "id" IN (SELECT "id" FROM "request_logs" WHERE "created_at" < ${cutoff} LIMIT ${5000})`;
 
-        // Force index paths so the BRIN index is exercised even while the
-        // table is small enough that a seq scan is cheaper. SET LOCAL ends
-        // with this transaction.
+        // Force the bitmap path, which is the only one BRIN offers, so the
+        // index is exercised even while a seq scan is cheaper. Disabling only
+        // seqscan is not enough: count(*) then takes an index-only scan of any
+        // B-tree containing created_at (e.g. (decision, created_at)).
+        // SET LOCAL ends with this transaction.
         await tx.$executeRawUnsafe('SET LOCAL enable_seqscan = off');
+        await tx.$executeRawUnsafe('SET LOCAL enable_indexscan = off');
+        await tx.$executeRawUnsafe('SET LOCAL enable_indexonlyscan = off');
         const forcedPlan = await tx.$queryRaw`
           EXPLAIN (FORMAT JSON)
           DELETE FROM "request_logs"
@@ -129,7 +133,9 @@ async function main() {
         const forcedCount = await tx.$queryRaw`
           EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
           SELECT count(*) FROM "request_logs" WHERE "created_at" < ${cutoff}`;
-        await tx.$executeRawUnsafe('SET LOCAL enable_seqscan = on');
+        await tx.$executeRawUnsafe('RESET enable_seqscan');
+        await tx.$executeRawUnsafe('RESET enable_indexscan');
+        await tx.$executeRawUnsafe('RESET enable_indexonlyscan');
 
         return { migrations, index, table, window, naturalPlan, forcedPlan, forcedCount };
       },
@@ -242,10 +248,24 @@ async function main() {
   );
 
   // 8. The job itself (Redis record written by RequestLogRetentionService).
+  // The record lives in the DEPLOYMENT's Redis. If this machine's env points
+  // elsewhere (apps/backend/.env has no REDIS_URL, so it is 127.0.0.1), the
+  // record is simply not visible here, and checks 5-7 above (read from
+  // Postgres) are the authoritative evidence that the job runs.
+  const redisTarget = process.env.REDIS_URL
+    ? new URL(process.env.REDIS_URL).hostname
+    : `${process.env.REDIS_HOST ?? '127.0.0.1'} (no REDIS_URL)`;
+  const localRedis = /^(127\.0\.0\.1|localhost)/.test(redisTarget);
   try {
     const { lastRun, lockTtl } = await readRedis();
     if (!lastRun) {
-      report('WARN', 'last job run', 'no run recorded yet (first boot catch-up runs ~60s after a cold start)');
+      report(
+        localRedis ? 'INFO' : 'WARN',
+        'last job run',
+        localRedis
+          ? `not visible: Redis here is ${redisTarget}, not the deployment's; rely on the Postgres checks above`
+          : 'no run recorded yet (first boot catch-up runs ~60s after a cold start)',
+      );
     } else {
       const ageH = (Date.now() - new Date(lastRun.finishedAt).getTime()) / 3_600_000;
       report(

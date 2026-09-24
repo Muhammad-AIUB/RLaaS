@@ -43,7 +43,7 @@ pnpm --filter @rlaas/backend db:seed
 
 # request_logs retention (35 days; also runs daily in-process + on overdue boot)
 pnpm --filter @rlaas/backend retention:run -- --dry-run   # count only (needs pnpm build:backend)
-pnpm --filter @rlaas/backend retention:run                # delete, batched, takes the same lock
+pnpm --filter @rlaas/backend retention:run                # delete, batched; shares the job's lock only if REDIS_URL is the deployment's Redis
 pnpm --filter @rlaas/backend retention:verify             # read-only post-rollout checks, PASS/WARN/FAIL
 
 # load + bench

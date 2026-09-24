@@ -12,9 +12,12 @@ import { RequestLogRetentionService } from './request-log-retention.service';
  *   pnpm --filter @rlaas/backend retention:run -- --dry-run   # count only
  *   pnpm --filter @rlaas/backend retention:run                # delete
  *
- * Runs against whatever DATABASE_URL / REDIS_URL the environment points at,
- * which in apps/backend/.env is production. It takes the same Redis lock as
- * the scheduled job, so it never deletes side by side with it.
+ * Runs against whatever DATABASE_URL / REDIS_URL the environment points at.
+ * In apps/backend/.env, DATABASE_URL is production but Redis is 127.0.0.1, so
+ * the lock it takes is only shared with the deployed job when REDIS_URL is set
+ * to the deployment's Redis. Without that, a manual run can overlap a
+ * scheduled one; harmless (both issue the same idempotent batched DELETEs),
+ * only wasteful.
  *
  * Boots only config, Prisma and Redis: no ScheduleModule, so no cron fires and
  * no boot catch-up starts inside this process.
