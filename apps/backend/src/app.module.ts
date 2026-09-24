@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AuditModule } from './audit/audit.module';
 import { ConfigModule } from '@nestjs/config';
@@ -15,6 +16,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ProjectsModule } from './projects/projects.module';
 import { RateLimiterModule } from './rate-limiter/rate-limiter.module';
 import { RedisModule } from './redis/redis.module';
+import { RequestLogRetentionModule } from './request-log-retention/request-log-retention.module';
 import { RulesModule } from './rules/rules.module';
 import { UsersModule } from './users/users.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
@@ -42,6 +44,8 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     RateLimiterModule,
     GatewayModule,
     HealthModule,
+    ScheduleModule.forRoot(),
+    RequestLogRetentionModule,
   ],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: EtagInterceptor },

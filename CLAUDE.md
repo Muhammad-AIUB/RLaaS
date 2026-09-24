@@ -41,6 +41,11 @@ pnpm --filter @rlaas/backend prisma:generate
 pnpm --filter @rlaas/backend prisma:migrate:dev
 pnpm --filter @rlaas/backend db:seed
 
+# request_logs retention (35 days; also runs daily in-process + on overdue boot)
+pnpm --filter @rlaas/backend retention:run -- --dry-run   # count only (needs pnpm build:backend)
+pnpm --filter @rlaas/backend retention:run                # delete, batched, takes the same lock
+pnpm --filter @rlaas/backend retention:verify             # read-only post-rollout checks, PASS/WARN/FAIL
+
 # load + bench
 pnpm loadtest:gateway          # k6 run tests/load/gateway-check.k6.js
 pnpm benchmark:algorithms      # tsx benchmarks/algorithm-benchmark.ts
